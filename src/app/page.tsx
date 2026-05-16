@@ -1,5 +1,5 @@
-const PHONE = "(865) 282-0348";
-const PHONE_HREF = "tel:+18652820348";
+const PHONE = "(865) 888-0301";
+const PHONE_HREF = "tel:+18658880301";
 
 export default function Home() {
   return (
