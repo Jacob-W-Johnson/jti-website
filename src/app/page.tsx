@@ -12,7 +12,7 @@ const allPhotos = Array.from({ length: TOTAL_PHOTOS }, (_, i) => ({
 
 // Use photo-30 as hero (full shower build), photo-33 as feature
 const heroPhoto = "/images/photo-30.jpg";
-const featurePhoto = "/images/photo-21.jpg";
+const featurePhoto = "/images/feature-niche.jpg";
 
 // Gallery = all photos except hero and feature
 const gallery = allPhotos.filter(
