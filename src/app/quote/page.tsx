@@ -98,6 +98,14 @@ export default function QuotePage() {
             backsplashSqft && `Backsplash: ${backsplashSqft} sqft (Tile: ${backsplashTile || "not specified"})`,
             hasAdditionalTile && `Additional tile: ${additionalTileExplanation}`,
           ].filter(Boolean).join(", ") || undefined,
+          // Structured area data for auto-pricing
+          areas: [
+            showerFloorSqft && { areaType: "shower_floor", sqft: parseFloat(showerFloorSqft) || 0, tileDescription: showerFloorTile },
+            bathroomFloorSqft && { areaType: "bathroom_floor", sqft: parseFloat(bathroomFloorSqft) || 0, tileDescription: bathroomFloorTile },
+            showerWallsSqft && { areaType: "shower_walls", sqft: parseFloat(showerWallsSqft) || 0, tileDescription: showerWallsTile },
+            floorSqft && { areaType: "floor", sqft: parseFloat(floorSqft) || 0, tileDescription: floorTile },
+            backsplashSqft && { areaType: "backsplash", sqft: parseFloat(backsplashSqft) || 0, tileDescription: backsplashTile },
+          ].filter(Boolean),
           features: features.length > 0 ? features : undefined,
           projectDetails: [
             tileOnSite && `Tile on site: ${tileOnSite}`,
