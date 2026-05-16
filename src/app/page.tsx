@@ -14,9 +14,10 @@ const allPhotos = Array.from({ length: TOTAL_PHOTOS }, (_, i) => ({
 const heroPhoto = "/images/photo-30.jpg";
 const featurePhoto = "/images/feature-niche.jpg";
 
-// Gallery = all photos except hero and feature
+// Exclude from gallery: hero, feature-niche (separate), and photos to remove
+const excludeFromGallery = [heroPhoto, "/images/photo-42.jpg", "/images/photo-43.jpg"];
 const gallery = allPhotos.filter(
-  (p) => p.src !== heroPhoto && p.src !== featurePhoto
+  (p) => !excludeFromGallery.includes(p.src)
 );
 
 export default function Home() {
