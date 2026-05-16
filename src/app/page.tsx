@@ -10,15 +10,70 @@ const allPhotos = Array.from({ length: TOTAL_PHOTOS }, (_, i) => ({
   alt: `Tile installation project ${i + 1}`,
 }));
 
-// Use photo-30 as hero (full shower build), photo-33 as feature
 const heroPhoto = "/images/photo-30.jpg";
 const featurePhoto = "/images/feature-niche.jpg";
 
-// Exclude from gallery: hero, feature-niche (separate), and photos to remove
+// Full-width breakout images
+const widePhotos = [
+  { src: "/images/wide-03.jpg", alt: "Onyx marble shower with hex floor" },
+  { src: "/images/wide-02.jpg", alt: "Travertine shower with dark niche" },
+  { src: "/images/wide-01.jpg", alt: "Slate tile floor and shower curb" },
+];
+
+// Exclude hero, removed photos from gallery
 const excludeFromGallery = [heroPhoto, "/images/photo-42.jpg", "/images/photo-43.jpg"];
 const gallery = allPhotos.filter(
   (p) => !excludeFromGallery.includes(p.src)
 );
+
+// Split gallery into chunks to insert wide photos between them
+const chunkSize = Math.ceil(gallery.length / (widePhotos.length + 1));
+const chunks: typeof gallery[] = [];
+for (let i = 0; i < gallery.length; i += chunkSize) {
+  chunks.push(gallery.slice(i, i + chunkSize));
+}
+
+function GalleryGrid({ photos }: { photos: typeof gallery }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4">
+      {photos.map((img, i) => {
+        const isLarge = i % 5 === 0;
+        return (
+          <div
+            key={img.src}
+            className={`relative overflow-hidden ${
+              isLarge
+                ? "col-span-2 row-span-2 aspect-square"
+                : "aspect-square"
+            }`}
+          >
+            <Image
+              src={img.src}
+              alt={img.alt}
+              fill
+              className="object-cover"
+              sizes={isLarge ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 50vw, 25vw"}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WideImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="h-[50vh] sm:h-[60vh] relative overflow-hidden">
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className="object-cover"
+        sizes="100vw"
+      />
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -64,31 +119,15 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Photo grid — mixed sizes for visual interest */}
-      <section className="grid grid-cols-2 md:grid-cols-4">
-        {gallery.map((img, i) => {
-          // Every 5th image (0, 5, 10, ...) spans 2x2
-          const isLarge = i % 5 === 0;
-          return (
-            <div
-              key={img.src}
-              className={`relative overflow-hidden ${
-                isLarge
-                  ? "col-span-2 row-span-2 aspect-square"
-                  : "aspect-square"
-              }`}
-            >
-              <Image
-                src={img.src}
-                alt={img.alt}
-                fill
-                className="object-cover"
-                sizes={isLarge ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 50vw, 25vw"}
-              />
-            </div>
-          );
-        })}
-      </section>
+      {/* Gallery with full-width images mixed in */}
+      {chunks.map((chunk, i) => (
+        <div key={i}>
+          <GalleryGrid photos={chunk} />
+          {i < widePhotos.length && (
+            <WideImage src={widePhotos[i].src} alt={widePhotos[i].alt} />
+          )}
+        </div>
+      ))}
 
       {/* Statement */}
       <section className="py-24 sm:py-32 px-6 bg-white">
@@ -107,15 +146,7 @@ export default function Home() {
       </section>
 
       {/* Full-width feature image */}
-      <section className="h-[50vh] sm:h-[60vh] relative overflow-hidden">
-        <Image
-          src={featurePhoto}
-          alt="Featured tile installation project"
-          fill
-          className="object-cover"
-          sizes="100vw"
-        />
-      </section>
+      <WideImage src={featurePhoto} alt="Double niche detail" />
 
       {/* Contact */}
       <section className="py-24 sm:py-32 px-6 bg-white text-center">
