@@ -1,173 +1,152 @@
 const PHONE = "(865) 282-0348";
 const PHONE_HREF = "tel:+18652820348";
-const EMAIL = "johnsontileinsta@gmail.com";
 
 export default function Home() {
   return (
     <>
-      {/* Hero */}
-      <section
-        className="min-h-[600px] flex items-center justify-center text-center px-6"
-        style={{
-          background:
-            "linear-gradient(135deg, #1e3a5f 0%, #2a4f7f 50%, #1e3a5f 100%)",
-        }}
-      >
-        <div className="max-w-2xl">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight">
-            Johnson Tile Installation
-          </h1>
-          <p className="mt-4 text-xl sm:text-2xl text-gray-200 italic">
-            When All the Details Matter
-          </p>
-          <p className="mt-6 text-lg text-gray-300">
+      {/* Hero — full viewport */}
+      <section className="relative h-screen flex items-center justify-center overflow-hidden">
+        {/* Background — will be a photo later */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(160deg, #0f2236 0%, #1e3a5f 40%, #2a4f7f 70%, #1e3a5f 100%)",
+          }}
+        />
+        {/* Tile pattern texture */}
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage: `repeating-linear-gradient(
+              0deg,
+              transparent,
+              transparent 59px,
+              rgba(255,255,255,0.3) 59px,
+              rgba(255,255,255,0.3) 60px
+            ),
+            repeating-linear-gradient(
+              90deg,
+              transparent,
+              transparent 59px,
+              rgba(255,255,255,0.3) 59px,
+              rgba(255,255,255,0.3) 60px
+            )`,
+          }}
+        />
+        <div className="relative text-center px-6">
+          <p className="text-sm sm:text-base tracking-[0.35em] uppercase text-gray-400 mb-4">
             Knoxville, TN
           </p>
-          <a
-            href={PHONE_HREF}
-            className="mt-8 inline-block text-xl sm:text-2xl font-semibold text-white border-2 border-white/40 rounded-lg px-8 py-3 hover:bg-white/10 transition-colors"
+          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold text-white leading-[0.95] tracking-tight">
+            Johnson
+            <br />
+            Tile
+          </h1>
+          <div className="mt-6 w-16 h-[2px] bg-white/30 mx-auto" />
+          <p className="mt-6 text-base sm:text-lg text-gray-300 tracking-wide">
+            When All the Details Matter
+          </p>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+          <svg
+            className="w-6 h-6 text-white/40"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            {PHONE}
-          </a>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7"
+            />
+          </svg>
         </div>
       </section>
 
-      {/* About */}
-      <section className="py-16 sm:py-20 px-6 bg-white">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-navy">
-            Professional Tile Installation
-          </h2>
-          <p className="mt-6 text-gray-600 text-lg leading-relaxed">
-            Johnson Tile Installation is a licensed and insured tile setting
-            company serving Knoxville, TN and the surrounding areas. We are a
-            Schluter Systems certified installer, specializing in custom showers,
-            floor tile, backsplashes, and waterproofing. Every project gets the
-            same attention to detail, from start to finish.
-          </p>
-        </div>
-      </section>
-
-      {/* Services */}
-      <section className="py-16 sm:py-20 px-6 bg-gray-light">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-navy text-center mb-12">
-            What We Do
-          </h2>
-          <div className="space-y-6">
-            {[
-              {
-                title: "Custom Showers",
-                desc: "Complete shower builds including waterproofing, tile setting, benches, niches, shelves, and drain installation.",
-              },
-              {
-                title: "Floor Tile",
-                desc: "Bathroom floors, kitchen tile, living areas, and large format installations. Precision layouts every time.",
-              },
-              {
-                title: "Backsplash",
-                desc: "Kitchen and bathroom backsplash installations. Clean lines and meticulous attention to detail.",
-              },
-              {
-                title: "Waterproofing",
-                desc: "Schluter Systems specialist. DITRA and Kerdi membrane installation. The foundation of every quality tile job.",
-              },
-              {
-                title: "Tile Repair",
-                desc: "Cracked, loose, or outdated tile. We handle repairs and renovations to restore your surfaces.",
-              },
-            ].map((s) => (
-              <div
-                key={s.title}
-                className="bg-white rounded-xl p-6 sm:p-8 border border-gray-200"
-              >
-                <h3 className="text-lg font-semibold text-navy">{s.title}</h3>
-                <p className="mt-2 text-gray-600">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Why Us */}
-      <section className="py-16 sm:py-20 px-6 bg-white">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-navy text-center mb-12">
-            Why Choose Us
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {[
-              "Licensed and Insured",
-              "Schluter Systems Certified",
-              "Free Estimates",
-              "Quality Craftsmanship",
-            ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-4 bg-gray-light rounded-xl p-5"
-              >
-                <div className="w-10 h-10 bg-navy rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-5 h-5 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-navy font-medium">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Contact / CTA */}
-      <section
-        className="py-16 sm:py-20 px-6 text-center"
-        style={{
-          background:
-            "linear-gradient(135deg, #1e3a5f 0%, #2a4f7f 50%, #1e3a5f 100%)",
-        }}
-      >
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">
-            Ready to Start Your Project?
-          </h2>
-          <p className="mt-4 text-gray-200 text-lg">
-            Call or text for a free estimate.
-          </p>
-          <a
-            href={PHONE_HREF}
-            className="mt-8 inline-block text-2xl sm:text-3xl font-bold text-white hover:text-gray-200 transition-colors"
+      {/* Photo grid — showcasing work */}
+      <section className="grid grid-cols-2 md:grid-cols-3">
+        {[
+          "Custom Shower",
+          "Floor Tile",
+          "Backsplash",
+          "Shower Detail",
+          "Bathroom Renovation",
+          "Large Format Tile",
+        ].map((label) => (
+          <div
+            key={label}
+            className="aspect-square bg-gray-placeholder relative group overflow-hidden cursor-default"
           >
-            {PHONE}
-          </a>
-          <p className="mt-6 text-gray-300">
-            <a
-              href={`mailto:${EMAIL}`}
-              className="hover:text-white transition-colors"
-            >
-              {EMAIL}
-            </a>
+            {/* Hover overlay with label */}
+            <div className="absolute inset-0 bg-navy/0 group-hover:bg-navy/60 transition-all duration-300 flex items-center justify-center">
+              <span className="text-white font-medium text-sm sm:text-base opacity-0 group-hover:opacity-100 transition-opacity duration-300 tracking-wide">
+                {label}
+              </span>
+            </div>
+            {/* Placeholder text — remove when photos added */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-gray-400 text-xs">Photo</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Statement */}
+      <section className="py-24 sm:py-32 px-6 bg-white">
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-2xl sm:text-3xl font-light text-navy leading-relaxed">
+            Licensed. Insured.
+            <br />
+            <span className="font-semibold">Schluter Certified.</span>
           </p>
-          <p className="mt-2 text-gray-400 text-sm">
-            Serving Knoxville, TN and surrounding areas
+          <div className="mt-8 w-12 h-[2px] bg-navy/20 mx-auto" />
+          <p className="mt-8 text-gray-500 leading-relaxed">
+            Custom showers, floors, backsplashes, waterproofing, and repairs.
+            Every tile set with precision.
           </p>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-navy-dark py-6 px-6 text-center">
-        <p className="text-gray-400 text-sm">
-          &copy; {new Date().getFullYear()} Johnson Tile Installation. All
-          rights reserved.
+      {/* Full-width feature image area */}
+      <section className="h-[50vh] sm:h-[60vh] bg-gray-placeholder relative">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, #1a3352 0%, #2a4f7f 100%)",
+          }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <p className="text-white/20 text-sm tracking-widest uppercase">
+            Featured Project Photo
+          </p>
+        </div>
+      </section>
+
+      {/* Contact — minimal */}
+      <section className="py-24 sm:py-32 px-6 bg-white text-center">
+        <p className="text-sm tracking-[0.3em] uppercase text-gray-400 mb-6">
+          Free Estimates
+        </p>
+        <a
+          href={PHONE_HREF}
+          className="text-3xl sm:text-5xl font-bold text-navy hover:text-navy-light transition-colors"
+        >
+          {PHONE}
+        </a>
+        <p className="mt-6 text-gray-400">
+          Knoxville, TN and surrounding areas
+        </p>
+      </section>
+
+      {/* Footer — barely there */}
+      <footer className="py-4 px-6 text-center bg-navy-dark">
+        <p className="text-gray-500 text-xs">
+          &copy; {new Date().getFullYear()} Johnson Tile Installation
         </p>
       </footer>
     </>
