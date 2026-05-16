@@ -2,15 +2,22 @@ import Image from "next/image";
 
 const PHONE = "(865) 888-0301";
 const PHONE_HREF = "tel:+18658880301";
+const TOTAL_PHOTOS = 43;
 
-const gallery = [
-  { src: "/images/gallery-1.jpg", alt: "Custom shower with beveled subway tile and penny tile floor" },
-  { src: "/images/gallery-2.jpg", alt: "Bathroom with penny tile floor and subway tile walls" },
-  { src: "/images/gallery-3.jpg", alt: "Walk-in shower with marble tile and pebble floor" },
-  { src: "/images/gallery-4.jpg", alt: "Kitchen backsplash with textured tile" },
-  { src: "/images/gallery-5.jpg", alt: "Penny tile floor with decorative flower accents" },
-  { src: "/images/gallery-6.jpg", alt: "Diamond pattern backsplash with decorative borders" },
-];
+// Build gallery array from all photos
+const allPhotos = Array.from({ length: TOTAL_PHOTOS }, (_, i) => ({
+  src: `/images/photo-${String(i + 1).padStart(2, "0")}.jpg`,
+  alt: `Tile installation project ${i + 1}`,
+}));
+
+// Use photo-30 as hero (full shower build), photo-33 as feature
+const heroPhoto = "/images/photo-30.jpg";
+const featurePhoto = "/images/photo-33.jpg";
+
+// Gallery = all photos except hero and feature
+const gallery = allPhotos.filter(
+  (p) => p.src !== heroPhoto && p.src !== featurePhoto
+);
 
 export default function Home() {
   return (
@@ -18,13 +25,12 @@ export default function Home() {
       {/* Hero — full viewport with photo */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
         <Image
-          src="/images/hero.jpg"
+          src={heroPhoto}
           alt="Custom shower tile installation"
           fill
           className="object-cover"
           priority
         />
-        {/* Dark overlay */}
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative text-center px-6">
           <p className="text-sm sm:text-base tracking-[0.35em] uppercase text-gray-300 mb-4">
@@ -40,8 +46,6 @@ export default function Home() {
             When All the Details Matter
           </p>
         </div>
-
-        {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
           <svg
             className="w-6 h-6 text-white/50"
@@ -59,8 +63,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Photo grid */}
-      <section className="grid grid-cols-2 md:grid-cols-3">
+      {/* Photo grid — all project photos */}
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {gallery.map((img) => (
           <div
             key={img.src}
@@ -71,7 +75,7 @@ export default function Home() {
               alt={img.alt}
               fill
               className="object-cover"
-              sizes="(max-width: 768px) 50vw, 33vw"
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
           </div>
         ))}
@@ -96,8 +100,8 @@ export default function Home() {
       {/* Full-width feature image */}
       <section className="h-[50vh] sm:h-[60vh] relative overflow-hidden">
         <Image
-          src="/images/feature.jpg"
-          alt="Marble tile shower installation"
+          src={featurePhoto}
+          alt="Featured tile installation project"
           fill
           className="object-cover"
           sizes="100vw"
