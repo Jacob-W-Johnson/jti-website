@@ -18,16 +18,7 @@ const SHOWER_FEATURES = [
   "Floating Bench",
   "Corner Shelf",
   "Custom Curb",
-  "Waterproofing",
   "Schluter Drain",
-];
-
-const TIMELINES = [
-  "As soon as possible",
-  "Within 2 weeks",
-  "Within 1 month",
-  "Within 2-3 months",
-  "Just getting estimates",
 ];
 
 type Step = "contact" | "project" | "details" | "photos" | "review";
@@ -48,10 +39,16 @@ export default function QuotePage() {
   const [projectType, setProjectType] = useState("");
 
   // Details
-  const [sqft, setSqft] = useState("");
+  const [showerFloorSqft, setShowerFloorSqft] = useState("");
+  const [bathroomFloorSqft, setBathroomFloorSqft] = useState("");
+  const [showerWallsSqft, setShowerWallsSqft] = useState("");
+  const [floorSqft, setFloorSqft] = useState("");
+  const [backsplashSqft, setBacksplashSqft] = useState("");
   const [features, setFeatures] = useState<string[]>([]);
   const [details, setDetails] = useState("");
-  const [timeline, setTimeline] = useState("");
+  const [tileOnSite, setTileOnSite] = useState("");
+  const [includeWaterproofing, setIncludeWaterproofing] = useState("");
+  const [readyDate, setReadyDate] = useState("");
 
   // Photos
   const [declinePhotos, setDeclinePhotos] = useState(false);
@@ -86,10 +83,21 @@ export default function QuotePage() {
           customerEmail: email || undefined,
           siteAddress: address,
           projectType,
-          squareFootage: sqft || undefined,
+          squareFootage: [
+            showerFloorSqft && `Shower Floor: ${showerFloorSqft} sqft`,
+            bathroomFloorSqft && `Bathroom Floor: ${bathroomFloorSqft} sqft`,
+            showerWallsSqft && `Shower Walls: ${showerWallsSqft} sqft`,
+            floorSqft && `Floor: ${floorSqft} sqft`,
+            backsplashSqft && `Backsplash: ${backsplashSqft} sqft`,
+          ].filter(Boolean).join(", ") || undefined,
           features: features.length > 0 ? features : undefined,
-          projectDetails: details || undefined,
-          timeline: timeline || undefined,
+          projectDetails: [
+            tileOnSite && `Tile on site: ${tileOnSite}`,
+            includeWaterproofing && `Include waterproofing materials: ${includeWaterproofing}`,
+            readyDate && `Ready for installation: ${readyDate}`,
+            details && details,
+          ].filter(Boolean).join("\n") || undefined,
+          timeline: readyDate || undefined,
           hasPhotos: !declinePhotos && photoFiles.length > 0,
           photoUrls: [],
         }),
@@ -268,18 +276,77 @@ export default function QuotePage() {
           <div className="space-y-5">
             <h2 className="text-xl font-semibold text-navy">Project Details</h2>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Approximate square footage
-              </label>
-              <input
-                type="text"
-                value={sqft}
-                onChange={(e) => setSqft(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-                placeholder="Best guess is fine"
-              />
-            </div>
+            {/* Square footage fields based on project type */}
+            {isShower && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Shower Floor (sq ft)
+                  </label>
+                  <input
+                    type="text"
+                    value={showerFloorSqft}
+                    onChange={(e) => setShowerFloorSqft(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder="Best guess is fine"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bathroom Floor (sq ft)
+                  </label>
+                  <input
+                    type="text"
+                    value={bathroomFloorSqft}
+                    onChange={(e) => setBathroomFloorSqft(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder="If applicable"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Shower Walls (sq ft)
+                  </label>
+                  <input
+                    type="text"
+                    value={showerWallsSqft}
+                    onChange={(e) => setShowerWallsSqft(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder="Best guess is fine"
+                  />
+                </div>
+              </>
+            )}
+
+            {projectType === "Floor Tile" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Floor Area (sq ft)
+                </label>
+                <input
+                  type="text"
+                  value={floorSqft}
+                  onChange={(e) => setFloorSqft(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                  placeholder="Best guess is fine"
+                />
+              </div>
+            )}
+
+            {projectType === "Backsplash" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Backsplash Area (sq ft)
+                </label>
+                <input
+                  type="text"
+                  value={backsplashSqft}
+                  onChange={(e) => setBacksplashSqft(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                  placeholder="Best guess is fine"
+                />
+              </div>
+            )}
 
             {isShower && (
               <div>
@@ -305,6 +372,62 @@ export default function QuotePage() {
               </div>
             )}
 
+            {/* Questions */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Do you have your tile on site?
+              </label>
+              <div className="flex gap-3">
+                {["Yes", "No", "Not yet"].map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setTileOnSite(opt)}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm transition-all ${
+                      tileOnSite === opt
+                        ? "border-navy bg-navy/5 text-navy font-medium"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Do you want waterproofing materials included in your quote?
+              </label>
+              <div className="flex gap-3">
+                {["Yes", "No", "Not sure"].map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setIncludeWaterproofing(opt)}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm transition-all ${
+                      includeWaterproofing === opt
+                        ? "border-navy bg-navy/5 text-navy font-medium"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                When will you be ready for installation to start?
+              </label>
+              <input
+                type="text"
+                value={readyDate}
+                onChange={(e) => setReadyDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                placeholder="e.g. Next week, March 15, ASAP"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Anything else we should know?
@@ -316,27 +439,6 @@ export default function QuotePage() {
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none resize-none"
                 placeholder="Tile preferences, special requirements, etc."
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                When are you looking to start?
-              </label>
-              <div className="space-y-2">
-                {TIMELINES.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTimeline(t)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
-                      timeline === t
-                        ? "border-navy bg-navy/5 text-navy font-medium"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="flex gap-3">
@@ -449,12 +551,18 @@ export default function QuotePage() {
               <div className="bg-gray-50 rounded-xl p-5 space-y-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project</h3>
                 <p className="text-navy font-medium">{projectType}</p>
-                {sqft && <p className="text-gray-600 text-sm">~{sqft} sq ft</p>}
+                {showerFloorSqft && <p className="text-gray-600 text-sm">Shower Floor: {showerFloorSqft} sq ft</p>}
+                {bathroomFloorSqft && <p className="text-gray-600 text-sm">Bathroom Floor: {bathroomFloorSqft} sq ft</p>}
+                {showerWallsSqft && <p className="text-gray-600 text-sm">Shower Walls: {showerWallsSqft} sq ft</p>}
+                {floorSqft && <p className="text-gray-600 text-sm">Floor: {floorSqft} sq ft</p>}
+                {backsplashSqft && <p className="text-gray-600 text-sm">Backsplash: {backsplashSqft} sq ft</p>}
                 {features.length > 0 && (
                   <p className="text-gray-600 text-sm">{features.join(", ")}</p>
                 )}
+                {tileOnSite && <p className="text-gray-600 text-sm">Tile on site: {tileOnSite}</p>}
+                {includeWaterproofing && <p className="text-gray-600 text-sm">Waterproofing materials: {includeWaterproofing}</p>}
+                {readyDate && <p className="text-gray-600 text-sm">Ready to start: {readyDate}</p>}
                 {details && <p className="text-gray-600 text-sm">{details}</p>}
-                {timeline && <p className="text-gray-600 text-sm">Timeline: {timeline}</p>}
               </div>
 
               <div className="bg-gray-50 rounded-xl p-5 space-y-2">
