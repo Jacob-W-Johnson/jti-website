@@ -97,8 +97,6 @@ export default function Home() {
             Johnson
             <br />
             Tile
-            <br />
-            <span className="text-3xl sm:text-5xl lg:text-6xl">Installation</span>
           </h1>
           <div className="mt-6 w-16 h-[2px] bg-white/40 mx-auto" />
           <p className="mt-6 text-base sm:text-lg text-gray-200 tracking-wide">
