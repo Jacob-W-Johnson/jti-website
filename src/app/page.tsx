@@ -63,12 +63,13 @@ function GalleryGrid({ photos }: { photos: typeof gallery }) {
 
 function WideImage({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="h-[50vh] sm:h-[60vh] relative overflow-hidden">
+    <div className="w-full bg-black">
       <Image
         src={src}
         alt={alt}
-        fill
-        className="object-cover"
+        width={1200}
+        height={900}
+        className="w-full h-auto"
         sizes="100vw"
       />
     </div>
