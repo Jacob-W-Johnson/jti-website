@@ -163,6 +163,14 @@ export default function Home() {
         <p className="mt-6 text-gray-400">
           Knoxville, TN and surrounding areas
         </p>
+        <div className="mt-10">
+          <a
+            href="/quote"
+            className="inline-block px-8 py-3.5 text-base font-semibold text-white bg-navy hover:bg-navy-light rounded-lg transition-colors"
+          >
+            Request a Quote Online
+          </a>
+        </div>
       </section>
 
       {/* Footer */}
