@@ -64,22 +64,30 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Photo grid — all project photos */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {gallery.map((img) => (
-          <div
-            key={img.src}
-            className="aspect-square relative overflow-hidden"
-          >
-            <Image
-              src={img.src}
-              alt={img.alt}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            />
-          </div>
-        ))}
+      {/* Photo grid — mixed sizes for visual interest */}
+      <section className="grid grid-cols-2 md:grid-cols-4">
+        {gallery.map((img, i) => {
+          // Every 5th image (0, 5, 10, ...) spans 2x2
+          const isLarge = i % 5 === 0;
+          return (
+            <div
+              key={img.src}
+              className={`relative overflow-hidden ${
+                isLarge
+                  ? "col-span-2 row-span-2 aspect-square"
+                  : "aspect-square"
+              }`}
+            >
+              <Image
+                src={img.src}
+                alt={img.alt}
+                fill
+                className="object-cover"
+                sizes={isLarge ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 50vw, 25vw"}
+              />
+            </div>
+          );
+        })}
       </section>
 
       {/* Statement */}
