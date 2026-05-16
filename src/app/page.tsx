@@ -1,41 +1,33 @@
+import Image from "next/image";
+
 const PHONE = "(865) 888-0301";
 const PHONE_HREF = "tel:+18658880301";
+
+const gallery = [
+  { src: "/images/gallery-1.jpg", alt: "Custom shower with beveled subway tile and penny tile floor" },
+  { src: "/images/gallery-2.jpg", alt: "Bathroom with penny tile floor and subway tile walls" },
+  { src: "/images/gallery-3.jpg", alt: "Walk-in shower with marble tile and pebble floor" },
+  { src: "/images/gallery-4.jpg", alt: "Kitchen backsplash with textured tile" },
+  { src: "/images/gallery-5.jpg", alt: "Penny tile floor with decorative flower accents" },
+  { src: "/images/gallery-6.jpg", alt: "Diamond pattern backsplash with decorative borders" },
+];
 
 export default function Home() {
   return (
     <>
-      {/* Hero — full viewport */}
+      {/* Hero — full viewport with photo */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Background — will be a photo later */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(160deg, #0f2236 0%, #1e3a5f 40%, #2a4f7f 70%, #1e3a5f 100%)",
-          }}
+        <Image
+          src="/images/hero.jpg"
+          alt="Custom shower tile installation"
+          fill
+          className="object-cover"
+          priority
         />
-        {/* Tile pattern texture */}
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage: `repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 59px,
-              rgba(255,255,255,0.3) 59px,
-              rgba(255,255,255,0.3) 60px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 59px,
-              rgba(255,255,255,0.3) 59px,
-              rgba(255,255,255,0.3) 60px
-            )`,
-          }}
-        />
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/50" />
         <div className="relative text-center px-6">
-          <p className="text-sm sm:text-base tracking-[0.35em] uppercase text-gray-400 mb-4">
+          <p className="text-sm sm:text-base tracking-[0.35em] uppercase text-gray-300 mb-4">
             Knoxville, TN
           </p>
           <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold text-white leading-[0.95] tracking-tight">
@@ -43,8 +35,8 @@ export default function Home() {
             <br />
             Tile
           </h1>
-          <div className="mt-6 w-16 h-[2px] bg-white/30 mx-auto" />
-          <p className="mt-6 text-base sm:text-lg text-gray-300 tracking-wide">
+          <div className="mt-6 w-16 h-[2px] bg-white/40 mx-auto" />
+          <p className="mt-6 text-base sm:text-lg text-gray-200 tracking-wide">
             When All the Details Matter
           </p>
         </div>
@@ -52,7 +44,7 @@ export default function Home() {
         {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
           <svg
-            className="w-6 h-6 text-white/40"
+            className="w-6 h-6 text-white/50"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -67,30 +59,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Photo grid — showcasing work */}
+      {/* Photo grid */}
       <section className="grid grid-cols-2 md:grid-cols-3">
-        {[
-          "Custom Shower",
-          "Floor Tile",
-          "Backsplash",
-          "Shower Detail",
-          "Bathroom Renovation",
-          "Large Format Tile",
-        ].map((label) => (
+        {gallery.map((img) => (
           <div
-            key={label}
-            className="aspect-square bg-gray-placeholder relative group overflow-hidden cursor-default"
+            key={img.src}
+            className="aspect-square relative overflow-hidden"
           >
-            {/* Hover overlay with label */}
-            <div className="absolute inset-0 bg-navy/0 group-hover:bg-navy/60 transition-all duration-300 flex items-center justify-center">
-              <span className="text-white font-medium text-sm sm:text-base opacity-0 group-hover:opacity-100 transition-opacity duration-300 tracking-wide">
-                {label}
-              </span>
-            </div>
-            {/* Placeholder text — remove when photos added */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-gray-400 text-xs">Photo</span>
-            </div>
+            <Image
+              src={img.src}
+              alt={img.alt}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 50vw, 33vw"
+            />
           </div>
         ))}
       </section>
@@ -111,23 +93,18 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Full-width feature image area */}
-      <section className="h-[50vh] sm:h-[60vh] bg-gray-placeholder relative">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(135deg, #1a3352 0%, #2a4f7f 100%)",
-          }}
+      {/* Full-width feature image */}
+      <section className="h-[50vh] sm:h-[60vh] relative overflow-hidden">
+        <Image
+          src="/images/feature.jpg"
+          alt="Marble tile shower installation"
+          fill
+          className="object-cover"
+          sizes="100vw"
         />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-white/20 text-sm tracking-widest uppercase">
-            Featured Project Photo
-          </p>
-        </div>
       </section>
 
-      {/* Contact — minimal */}
+      {/* Contact */}
       <section className="py-24 sm:py-32 px-6 bg-white text-center">
         <p className="text-sm tracking-[0.3em] uppercase text-gray-400 mb-6">
           Free Estimates
@@ -143,7 +120,7 @@ export default function Home() {
         </p>
       </section>
 
-      {/* Footer — barely there */}
+      {/* Footer */}
       <footer className="py-4 px-6 text-center bg-navy-dark">
         <p className="text-gray-500 text-xs">
           &copy; {new Date().getFullYear()} Johnson Tile Installation
