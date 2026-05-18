@@ -332,6 +332,8 @@ export default function QuotePage() {
         buildArea("backsplash", backsplashSqft, backsplashTile),
       ].filter(Boolean);
 
+      const hasAnyPhotos = !declinePhotos && (areaPhotos.length > 0 || tilePhotos.length > 0);
+
       const res = await fetch(QUOTE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -363,7 +365,7 @@ export default function QuotePage() {
             details && details,
           ].filter(Boolean).join("\n") || undefined,
           timeline: readyDate || undefined,
-          hasPhotos: !declinePhotos && (areaPhotos.length > 0 || tilePhotos.length > 0),
+          hasPhotos: hasAnyPhotos,
           hasAreaPhotos: areaPhotos.length > 0,
           hasTilePhotos: tilePhotos.length > 0,
           photoUrls: [],
@@ -373,6 +375,37 @@ export default function QuotePage() {
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Something went wrong");
+      }
+
+      const result = await res.json();
+
+      // Upload photos if any
+      if (hasAnyPhotos && result.quoteId) {
+        const PHOTO_API = "https://quotes.johnsontileinstallation.com/api/quote/photos";
+
+        if (areaPhotos.length > 0) {
+          const areaForm = new FormData();
+          areaForm.append("quoteId", result.quoteId);
+          areaForm.append("category", "area");
+          for (const file of areaPhotos) {
+            areaForm.append("photos", file);
+          }
+          await fetch(PHOTO_API, { method: "POST", body: areaForm }).catch((err) =>
+            console.error("Area photo upload failed:", err)
+          );
+        }
+
+        if (tilePhotos.length > 0) {
+          const tileForm = new FormData();
+          tileForm.append("quoteId", result.quoteId);
+          tileForm.append("category", "tile");
+          for (const file of tilePhotos) {
+            tileForm.append("photos", file);
+          }
+          await fetch(PHOTO_API, { method: "POST", body: tileForm }).catch((err) =>
+            console.error("Tile photo upload failed:", err)
+          );
+        }
       }
 
       setSubmitted(true);
