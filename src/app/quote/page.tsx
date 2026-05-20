@@ -21,6 +21,40 @@ const SHOWER_FEATURES = [
   "Schluter Drain",
 ];
 
+// Area types available per project type
+const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = {
+  "Shower / Bathroom Remodel": [
+    { key: "shower_floor", label: "Shower Floor" },
+    { key: "bathroom_floor", label: "Bathroom Floor" },
+    { key: "shower_walls", label: "Shower Walls" },
+    { key: "floor", label: "Floor" },
+    { key: "backsplash", label: "Backsplash" },
+  ],
+  "Floor Tile": [
+    { key: "floor", label: "Floor" },
+    { key: "bathroom_floor", label: "Bathroom Floor" },
+    { key: "backsplash", label: "Backsplash" },
+  ],
+  "Backsplash": [
+    { key: "backsplash", label: "Backsplash" },
+    { key: "floor", label: "Floor" },
+  ],
+  "Tile Repair": [
+    { key: "shower_floor", label: "Shower Floor" },
+    { key: "bathroom_floor", label: "Bathroom Floor" },
+    { key: "shower_walls", label: "Shower Walls" },
+    { key: "floor", label: "Floor" },
+    { key: "backsplash", label: "Backsplash" },
+  ],
+  "Other": [
+    { key: "shower_floor", label: "Shower Floor" },
+    { key: "bathroom_floor", label: "Bathroom Floor" },
+    { key: "shower_walls", label: "Shower Walls" },
+    { key: "floor", label: "Floor" },
+    { key: "backsplash", label: "Backsplash" },
+  ],
+};
+
 // Tile shape options
 const TILE_SHAPES = [
   { key: "rectangle", label: "Rectangle / Square" },
@@ -56,6 +90,14 @@ type TileSize = {
   customDesc: string;
 };
 
+type AreaEntry = {
+  id: string;
+  areaType: string;
+  label: string;
+  sqft: string;
+  tileSize: TileSize;
+};
+
 function tileSqft(size: TileSize): number {
   if (size.shape === "hexagon") {
     const inchMap: Record<string, number> = { "1in": 1, "2in": 2, "3in": 3, "4in": 4, "6in": 6, "8in": 8 };
@@ -87,6 +129,13 @@ function tileDisplayLabel(size: TileSize): string {
     return `${size.dim1}x${size.dim2} ${shapeLabel.toLowerCase()}`;
   }
   return "";
+}
+
+const emptyTileSize: TileSize = { shape: "", dim1: 0, dim2: 0, hexSize: "", customDesc: "" };
+
+let nextAreaId = 1;
+function makeAreaId() {
+  return `area_${nextAreaId++}_${Date.now()}`;
 }
 
 // Dropdown component for inch selection
@@ -196,7 +245,7 @@ function TileSizePicker({ size, onChange }: { size: TileSize; onChange: (s: Tile
       {needsDimensions && (
         <div className="flex gap-3 items-end">
           <InchDropdown value={size.dim1} onChange={(v) => onChange({ ...size, dim1: v })} label="Width" />
-          <span className="pb-3 text-gray-400 font-bold">×</span>
+          <span className="pb-3 text-gray-400 font-bold">&times;</span>
           <InchDropdown value={size.dim2} onChange={(v) => onChange({ ...size, dim2: v })} label="Height" />
         </div>
       )}
@@ -245,9 +294,132 @@ function TileSizePicker({ size, onChange }: { size: TileSize; onChange: (s: Tile
   );
 }
 
-type Step = "contact" | "project" | "details" | "photos" | "review";
+// Area type picker dropdown
+function AreaTypePicker({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { key: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-const emptyTileSize: TileSize = { shape: "", dim1: 0, dim2: 0, hexSize: "", customDesc: "" };
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedLabel = options.find((o) => o.key === value)?.label || "";
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs text-gray-500 mb-1">Area type</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full border rounded-lg px-4 py-3 text-base text-left flex items-center justify-between ${open ? "border-navy ring-2 ring-navy/20" : "border-gray-300"}`}
+      >
+        <span className={value ? "text-gray-900" : "text-gray-400"}>
+          {selectedLabel || "Select area type"}
+        </span>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => { onChange(o.key); setOpen(false); }}
+              className={`w-full text-left px-4 py-3 text-sm hover:bg-navy/5 ${value === o.key ? "bg-navy/10 text-navy font-medium" : "text-gray-700"}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Single area card component
+function AreaCard({
+  area,
+  index,
+  areaTypeOptions,
+  onUpdate,
+  onRemove,
+  canRemove,
+}: {
+  area: AreaEntry;
+  index: number;
+  areaTypeOptions: { key: string; label: string }[];
+  onUpdate: (updated: AreaEntry) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const areaLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label || area.areaType;
+
+  return (
+    <div className="bg-gray-50 rounded-xl p-4 space-y-3 relative">
+      {/* Header row with area number and remove button */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-navy">Area {index + 1}</p>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+            title="Remove area"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Area type */}
+      <AreaTypePicker
+        value={area.areaType}
+        onChange={(v) => onUpdate({ ...area, areaType: v })}
+        options={areaTypeOptions}
+      />
+
+      {/* Custom label */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Label (optional)</label>
+        <input
+          type="text"
+          value={area.label}
+          onChange={(e) => onUpdate({ ...area, label: e.target.value })}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+          placeholder={`e.g. Master Bathroom, Kitchen, Guest Bath`}
+        />
+      </div>
+
+      {/* Square footage */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Square footage</label>
+        <input
+          type="text"
+          value={area.sqft}
+          onChange={(e) => onUpdate({ ...area, sqft: e.target.value })}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+          placeholder="Best guess is fine"
+        />
+      </div>
+
+      {/* Tile size picker */}
+      <TileSizePicker
+        size={area.tileSize}
+        onChange={(ts) => onUpdate({ ...area, tileSize: ts })}
+      />
+    </div>
+  );
+}
+
+type Step = "contact" | "project" | "details" | "photos" | "review";
 
 export default function QuotePage() {
   const [step, setStep] = useState<Step>("contact");
@@ -264,19 +436,8 @@ export default function QuotePage() {
   // Project
   const [projectType, setProjectType] = useState("");
 
-  // Details
-  const [showerFloorSqft, setShowerFloorSqft] = useState("");
-  const [showerFloorTile, setShowerFloorTile] = useState<TileSize>({ ...emptyTileSize });
-  const [bathroomFloorSqft, setBathroomFloorSqft] = useState("");
-  const [bathroomFloorTile, setBathroomFloorTile] = useState<TileSize>({ ...emptyTileSize });
-  const [showerWallsSqft, setShowerWallsSqft] = useState("");
-  const [showerWallsTile, setShowerWallsTile] = useState<TileSize>({ ...emptyTileSize });
-  const [floorSqft, setFloorSqft] = useState("");
-  const [floorTile, setFloorTile] = useState<TileSize>({ ...emptyTileSize });
-  const [backsplashSqft, setBacksplashSqft] = useState("");
-  const [backsplashTile, setBacksplashTile] = useState<TileSize>({ ...emptyTileSize });
-  const [hasAdditionalTile, setHasAdditionalTile] = useState(false);
-  const [additionalTileExplanation, setAdditionalTileExplanation] = useState("");
+  // Details — dynamic areas list
+  const [areas, setAreas] = useState<AreaEntry[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [details, setDetails] = useState("");
   const [tileOnSite, setTileOnSite] = useState("");
@@ -287,6 +448,27 @@ export default function QuotePage() {
   const [declinePhotos, setDeclinePhotos] = useState(false);
   const [areaPhotos, setAreaPhotos] = useState<File[]>([]);
   const [tilePhotos, setTilePhotos] = useState<File[]>([]);
+
+  // When project type changes, seed default areas
+  function initAreasForProject(pt: string) {
+    const defaults: Record<string, string[]> = {
+      "Shower / Bathroom Remodel": ["shower_floor", "bathroom_floor", "shower_walls"],
+      "Floor Tile": ["floor"],
+      "Backsplash": ["backsplash"],
+      "Tile Repair": [],
+      "Other": [],
+    };
+    const areaKeys = defaults[pt] || [];
+    setAreas(
+      areaKeys.map((key) => ({
+        id: makeAreaId(),
+        areaType: key,
+        label: "",
+        sqft: "",
+        tileSize: { ...emptyTileSize },
+      }))
+    );
+  }
 
   function formatPhone(value: string) {
     const digits = value.replace(/\D/g, "");
@@ -303,20 +485,53 @@ export default function QuotePage() {
 
   const isShower = projectType === "Shower / Bathroom Remodel";
   const isFloor = projectType === "Floor Tile";
+  const areaTypeOptions = AREA_TYPES_BY_PROJECT[projectType] || [];
+
+  function addArea() {
+    // Default to the first available area type
+    const defaultType = areaTypeOptions[0]?.key || "floor";
+    setAreas((prev) => [
+      ...prev,
+      {
+        id: makeAreaId(),
+        areaType: defaultType,
+        label: "",
+        sqft: "",
+        tileSize: { ...emptyTileSize },
+      },
+    ]);
+  }
+
+  function updateArea(id: string, updated: AreaEntry) {
+    setAreas((prev) => prev.map((a) => (a.id === id ? updated : a)));
+  }
+
+  function removeArea(id: string) {
+    setAreas((prev) => prev.filter((a) => a.id !== id));
+  }
 
   // Build area data for submission
-  function buildArea(areaType: string, sqft: string, tile: TileSize) {
-    if (!sqft) return null;
+  function buildAreaData(area: AreaEntry) {
+    if (!area.sqft) return null;
     return {
-      areaType,
-      sqft: parseFloat(sqft) || 0,
-      tileShape: tile.shape,
-      tileDim1: tile.dim1,
-      tileDim2: tile.dim2,
-      tileHexSize: tile.hexSize,
-      tileSqft: tileSqft(tile),
-      tileDescription: tileDisplayLabel(tile),
+      areaType: area.areaType,
+      label: area.label || undefined,
+      sqft: parseFloat(area.sqft) || 0,
+      tileShape: area.tileSize.shape,
+      tileDim1: area.tileSize.dim1,
+      tileDim2: area.tileSize.dim2,
+      tileHexSize: area.tileSize.hexSize,
+      tileSqft: tileSqft(area.tileSize),
+      tileDescription: tileDisplayLabel(area.tileSize),
     };
+  }
+
+  function areaDisplayName(area: AreaEntry): string {
+    const typeLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label ||
+      AREA_TYPES_BY_PROJECT["Other"]?.find((o) => o.key === area.areaType)?.label ||
+      area.areaType;
+    if (area.label) return `${typeLabel} - ${area.label}`;
+    return typeLabel;
   }
 
   async function handleSubmit() {
@@ -324,15 +539,17 @@ export default function QuotePage() {
     setError("");
 
     try {
-      const areas = [
-        buildArea("shower_floor", showerFloorSqft, showerFloorTile),
-        buildArea("bathroom_floor", bathroomFloorSqft, bathroomFloorTile),
-        buildArea("shower_walls", showerWallsSqft, showerWallsTile),
-        buildArea("floor", floorSqft, floorTile),
-        buildArea("backsplash", backsplashSqft, backsplashTile),
-      ].filter(Boolean);
+      const builtAreas = areas.map(buildAreaData).filter(Boolean);
 
       const hasAnyPhotos = !declinePhotos && (areaPhotos.length > 0 || tilePhotos.length > 0);
+
+      const serviceNameMap: Record<string, string> = {
+        shower_floor: "Shower Floor",
+        bathroom_floor: "Bathroom Floor",
+        shower_walls: "Shower Walls",
+        floor: "Floor",
+        backsplash: "Backsplash",
+      };
 
       const res = await fetch(QUOTE_API, {
         method: "POST",
@@ -343,25 +560,19 @@ export default function QuotePage() {
           customerEmail: email || undefined,
           siteAddress: address,
           projectType,
-          squareFootage: areas.map((a) => {
-            const area = a as { areaType: string; sqft: number; tileDescription: string };
-            const nameMap: Record<string, string> = {
-              shower_floor: "Shower Floor",
-              bathroom_floor: "Bathroom Floor",
-              shower_walls: "Shower Walls",
-              floor: "Floor",
-              backsplash: "Backsplash",
-            };
-            return `${nameMap[area.areaType] || area.areaType}: ${area.sqft} sqft (${area.tileDescription})`;
+          squareFootage: builtAreas.map((a) => {
+            const area = a as { areaType: string; sqft: number; tileDescription: string; label?: string };
+            const baseName = serviceNameMap[area.areaType] || area.areaType;
+            const displayName = area.label ? `${baseName} - ${area.label}` : baseName;
+            return `${displayName}: ${area.sqft} sqft (${area.tileDescription})`;
           }).join(", ") || undefined,
-          areas,
+          areas: builtAreas,
           features: features.length > 0 ? features : undefined,
           includeSchluterMaterials: includeSchluterMaterials === "Yes",
           projectDetails: [
             tileOnSite && `Tile on site: ${tileOnSite}`,
             includeSchluterMaterials && `Schluter setting materials: ${includeSchluterMaterials}`,
             readyDate && `Ready for installation: ${readyDate}`,
-            hasAdditionalTile && `Additional tile: ${additionalTileExplanation}`,
             details && details,
           ].filter(Boolean).join("\n") || undefined,
           timeline: readyDate || undefined,
@@ -497,7 +708,7 @@ export default function QuotePage() {
             <h2 className="text-xl font-semibold text-navy">What type of project?</h2>
             <div className="space-y-3">
               {PROJECT_TYPES.map((t) => (
-                <button key={t} onClick={() => setProjectType(t)}
+                <button key={t} onClick={() => { setProjectType(t); initAreasForProject(t); }}
                   className={`w-full text-left px-5 py-4 rounded-lg border-2 transition-all ${
                     projectType === t ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-700 hover:border-gray-300"
                   }`}>
@@ -517,79 +728,29 @@ export default function QuotePage() {
         {step === "details" && (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold text-navy">Project Details</h2>
+            <p className="text-gray-500 text-sm">Add each area you need tiled. You can add multiple areas and label them.</p>
 
-            {isShower && (
-              <>
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-semibold text-navy">Shower Floor</p>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-                    <input type="text" value={showerFloorSqft} onChange={(e) => setShowerFloorSqft(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="Best guess is fine" />
-                  </div>
-                  <TileSizePicker size={showerFloorTile} onChange={setShowerFloorTile} />
-                </div>
+            {/* Dynamic area cards */}
+            {areas.map((area, i) => (
+              <AreaCard
+                key={area.id}
+                area={area}
+                index={i}
+                areaTypeOptions={areaTypeOptions}
+                onUpdate={(updated) => updateArea(area.id, updated)}
+                onRemove={() => removeArea(area.id)}
+                canRemove={areas.length > 1}
+              />
+            ))}
 
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-semibold text-navy">Bathroom Floor</p>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-                    <input type="text" value={bathroomFloorSqft} onChange={(e) => setBathroomFloorSqft(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="If applicable" />
-                  </div>
-                  <TileSizePicker size={bathroomFloorTile} onChange={setBathroomFloorTile} />
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-semibold text-navy">Shower Walls</p>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-                    <input type="text" value={showerWallsSqft} onChange={(e) => setShowerWallsSqft(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="Best guess is fine" />
-                  </div>
-                  <TileSizePicker size={showerWallsTile} onChange={setShowerWallsTile} />
-                </div>
-              </>
-            )}
-
-            {isFloor && (
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <p className="text-sm font-semibold text-navy">Floor</p>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-                  <input type="text" value={floorSqft} onChange={(e) => setFloorSqft(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="Best guess is fine" />
-                </div>
-                <TileSizePicker size={floorTile} onChange={setFloorTile} />
-              </div>
-            )}
-
-            {projectType === "Backsplash" && (
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <p className="text-sm font-semibold text-navy">Backsplash</p>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-                  <input type="text" value={backsplashSqft} onChange={(e) => setBacksplashSqft(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="Best guess is fine" />
-                </div>
-                <TileSizePicker size={backsplashTile} onChange={setBacksplashTile} />
-              </div>
-            )}
-
-            {/* Additional tile */}
-            <div>
-              <button onClick={() => setHasAdditionalTile(!hasAdditionalTile)}
-                className={`w-full text-left px-4 py-3 rounded-lg border-2 text-sm transition-all ${
-                  hasAdditionalTile ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                }`}>
-                {hasAdditionalTile ? "+ " : ""}I have additional tile for another area
-              </button>
-              {hasAdditionalTile && (
-                <textarea value={additionalTileExplanation} onChange={(e) => setAdditionalTileExplanation(e.target.value)} rows={3}
-                  className="mt-3 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none resize-none"
-                  placeholder="Describe the area, tile shape/dimensions, and approximate square footage" />
-              )}
-            </div>
+            {/* Add area button */}
+            <button
+              type="button"
+              onClick={addArea}
+              className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 font-medium text-sm hover:border-navy hover:text-navy hover:bg-navy/5 transition-all"
+            >
+              + Add Another Area
+            </button>
 
             {isShower && (
               <div>
@@ -734,12 +895,16 @@ export default function QuotePage() {
               <div className="bg-gray-50 rounded-xl p-5 space-y-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project</h3>
                 <p className="text-navy font-medium">{projectType}</p>
-                {showerFloorSqft && <p className="text-gray-600 text-sm">Shower Floor: {showerFloorSqft} sq ft — {tileDisplayLabel(showerFloorTile) || "not specified"}</p>}
-                {bathroomFloorSqft && <p className="text-gray-600 text-sm">Bathroom Floor: {bathroomFloorSqft} sq ft — {tileDisplayLabel(bathroomFloorTile) || "not specified"}</p>}
-                {showerWallsSqft && <p className="text-gray-600 text-sm">Shower Walls: {showerWallsSqft} sq ft — {tileDisplayLabel(showerWallsTile) || "not specified"}</p>}
-                {floorSqft && <p className="text-gray-600 text-sm">Floor: {floorSqft} sq ft — {tileDisplayLabel(floorTile) || "not specified"}</p>}
-                {backsplashSqft && <p className="text-gray-600 text-sm">Backsplash: {backsplashSqft} sq ft — {tileDisplayLabel(backsplashTile) || "not specified"}</p>}
-                {hasAdditionalTile && <p className="text-gray-600 text-sm">Additional: {additionalTileExplanation}</p>}
+                {areas.filter((a) => a.sqft).map((area) => (
+                  <p key={area.id} className="text-gray-600 text-sm">
+                    {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
+                  </p>
+                ))}
+                {areas.filter((a) => !a.sqft && a.areaType).map((area) => (
+                  <p key={area.id} className="text-gray-600 text-sm">
+                    {areaDisplayName(area)}: sqft not specified — {tileDisplayLabel(area.tileSize) || "not specified"}
+                  </p>
+                ))}
                 {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
                 {tileOnSite && <p className="text-gray-600 text-sm">Tile on site: {tileOnSite}</p>}
                 {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
