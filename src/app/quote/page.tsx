@@ -140,7 +140,7 @@ type AreaEntry = {
 };
 
 // A project the user has finished filling out (snapshotted from the live form).
-// Photos are pooled at the top level, not per-project.
+// Each project has its own photos so multi-project quotes keep them separated.
 type SavedProject = {
   id: string;
   projectType: string;
@@ -149,6 +149,8 @@ type SavedProject = {
   features: string[];
   details: string;
   includeSchluterMaterials: string;
+  areaPhotos: File[];
+  tilePhotos: File[];
 };
 
 function tileSqft(size: TileSize): number {
@@ -525,10 +527,12 @@ export default function QuotePage() {
       features,
       details,
       includeSchluterMaterials,
+      areaPhotos,
+      tilePhotos,
     };
   }
 
-  // Reset the current-project form to blank (keeps contact + photos intact)
+  // Reset the current-project form to blank (clears photos too — each project owns its own photos)
   function resetCurrentProject() {
     setProjectType("");
     setCategoryLabel("");
@@ -536,6 +540,9 @@ export default function QuotePage() {
     setFeatures([]);
     setDetails("");
     setIncludeSchluterMaterials("");
+    setAreaPhotos([]);
+    setTilePhotos([]);
+    setDeclinePhotos(false);
     setEditingIndex(null);
   }
 
@@ -566,6 +573,9 @@ export default function QuotePage() {
     setFeatures(p.features);
     setDetails(p.details);
     setIncludeSchluterMaterials(p.includeSchluterMaterials);
+    setAreaPhotos(p.areaPhotos || []);
+    setTilePhotos(p.tilePhotos || []);
+    setDeclinePhotos(false);
     setEditingIndex(index);
     setStep("project");
   }
@@ -644,8 +654,6 @@ export default function QuotePage() {
     setError("");
 
     try {
-      const hasAnyPhotos = !declinePhotos && (areaPhotos.length > 0 || tilePhotos.length > 0);
-
       const serviceNameMap: Record<string, string> = {
         shower_floor: "Shower Floor",
         bathroom_floor: "Bathroom Floor",
@@ -666,6 +674,11 @@ export default function QuotePage() {
         }
         return [...savedProjects, liveSnap];
       })();
+
+      // Photos are per-project; "hasAnyPhotos" is true if ANY project has at least one photo.
+      const hasAnyPhotos = !declinePhotos && allProjects.some(
+        (p) => (p.areaPhotos?.length || 0) > 0 || (p.tilePhotos?.length || 0) > 0
+      );
 
       // Build per-project payload entries
       const projectsPayload = allProjects.map((proj) => {
@@ -738,8 +751,8 @@ export default function QuotePage() {
           // New: full list of projects
           projects: projectsPayload,
           hasPhotos: hasAnyPhotos,
-          hasAreaPhotos: areaPhotos.length > 0,
-          hasTilePhotos: tilePhotos.length > 0,
+          hasAreaPhotos: allProjects.some((p) => (p.areaPhotos?.length || 0) > 0),
+          hasTilePhotos: allProjects.some((p) => (p.tilePhotos?.length || 0) > 0),
           photoUrls: [],
         }),
       });
@@ -751,32 +764,42 @@ export default function QuotePage() {
 
       const result = await res.json();
 
-      // Upload photos if any
+      // Upload photos per project, tagged with projectName so the quote builder
+      // can group them. Each project's area + tile photos go in separate POSTs.
       if (hasAnyPhotos && result.quoteId) {
+        const uploadTasks: Promise<Response | void>[] = [];
 
-        if (areaPhotos.length > 0) {
-          const areaForm = new FormData();
-          areaForm.append("quoteId", result.quoteId);
-          areaForm.append("category", "area");
-          for (const file of areaPhotos) {
-            areaForm.append("photos", file);
+        for (const proj of allProjects) {
+          const projName = proj.categoryLabel || proj.projectType || "";
+
+          if ((proj.areaPhotos?.length || 0) > 0) {
+            const form = new FormData();
+            form.append("quoteId", result.quoteId);
+            form.append("category", "area");
+            if (projName) form.append("projectName", projName);
+            for (const file of proj.areaPhotos) form.append("photos", file);
+            uploadTasks.push(
+              fetch(PHOTO_API, { method: "POST", body: form }).catch((err) => {
+                console.error(`Area photo upload failed for project '${projName}':`, err);
+              })
+            );
           }
-          await fetch(PHOTO_API, { method: "POST", body: areaForm }).catch((err) =>
-            console.error("Area photo upload failed:", err)
-          );
+
+          if ((proj.tilePhotos?.length || 0) > 0) {
+            const form = new FormData();
+            form.append("quoteId", result.quoteId);
+            form.append("category", "tile");
+            if (projName) form.append("projectName", projName);
+            for (const file of proj.tilePhotos) form.append("photos", file);
+            uploadTasks.push(
+              fetch(PHOTO_API, { method: "POST", body: form }).catch((err) => {
+                console.error(`Tile photo upload failed for project '${projName}':`, err);
+              })
+            );
+          }
         }
 
-        if (tilePhotos.length > 0) {
-          const tileForm = new FormData();
-          tileForm.append("quoteId", result.quoteId);
-          tileForm.append("category", "tile");
-          for (const file of tilePhotos) {
-            tileForm.append("photos", file);
-          }
-          await fetch(PHOTO_API, { method: "POST", body: tileForm }).catch((err) =>
-            console.error("Tile photo upload failed:", err)
-          );
-        }
+        await Promise.all(uploadTasks);
       }
 
       setSubmitted(true);
@@ -1059,6 +1082,8 @@ export default function QuotePage() {
                       features,
                       details,
                       includeSchluterMaterials,
+                      areaPhotos,
+                      tilePhotos,
                     }
                   : savedProj;
                 const projIsFloor = proj.projectType === "Floor Tile";
@@ -1108,6 +1133,13 @@ export default function QuotePage() {
                       </p>
                     )}
                     {proj.details && <p className="text-gray-600 text-sm">{proj.details}</p>}
+                    {((proj.areaPhotos?.length || 0) > 0 || (proj.tilePhotos?.length || 0) > 0) && (
+                      <p className="text-gray-600 text-sm">
+                        {(proj.areaPhotos?.length || 0) > 0 && `${proj.areaPhotos.length} area photo${proj.areaPhotos.length === 1 ? "" : "s"}`}
+                        {(proj.areaPhotos?.length || 0) > 0 && (proj.tilePhotos?.length || 0) > 0 && ", "}
+                        {(proj.tilePhotos?.length || 0) > 0 && `${proj.tilePhotos.length} tile photo${proj.tilePhotos.length === 1 ? "" : "s"}`}
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -1127,6 +1159,13 @@ export default function QuotePage() {
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
                   {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
                   {details && <p className="text-gray-600 text-sm">{details}</p>}
+                  {(areaPhotos.length > 0 || tilePhotos.length > 0) && (
+                    <p className="text-gray-600 text-sm">
+                      {areaPhotos.length > 0 && `${areaPhotos.length} area photo${areaPhotos.length === 1 ? "" : "s"}`}
+                      {areaPhotos.length > 0 && tilePhotos.length > 0 && ", "}
+                      {tilePhotos.length > 0 && `${tilePhotos.length} tile photo${tilePhotos.length === 1 ? "" : "s"}`}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1138,17 +1177,11 @@ export default function QuotePage() {
                 + Add another project
               </button>
 
-              <div className="bg-gray-50 rounded-xl p-5 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Photos</h3>
-                {declinePhotos ? (
-                  <p className="text-gray-500 text-sm">No photos attached</p>
-                ) : (
-                  <div className="space-y-1">
-                    {areaPhotos.length > 0 && <p className="text-navy text-sm font-medium">{areaPhotos.length} area photo{areaPhotos.length > 1 ? "s" : ""}</p>}
-                    {tilePhotos.length > 0 && <p className="text-navy text-sm font-medium">{tilePhotos.length} tile photo{tilePhotos.length > 1 ? "s" : ""}</p>}
-                  </div>
-                )}
-              </div>
+              {declinePhotos && (
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <p className="text-gray-500 text-sm">No photos attached for any project</p>
+                </div>
+              )}
             </div>
 
             {error && (
