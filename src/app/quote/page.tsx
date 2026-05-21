@@ -2,7 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 
-const QUOTE_API = "https://quotes.johnsontileinstallation.com/api/quote/request";
+// Allow override via NEXT_PUBLIC_QUOTE_API_URL so branch previews can hit a matching backend preview.
+// Falls back to the live production endpoint for main + local dev.
+const QUOTE_API =
+  process.env.NEXT_PUBLIC_QUOTE_API_URL ||
+  "https://quotes.johnsontileinstallation.com/api/quote/request";
+const PHOTO_API =
+  process.env.NEXT_PUBLIC_PHOTO_API_URL ||
+  "https://quotes.johnsontileinstallation.com/api/quote/photos";
 
 const PROJECT_TYPES = [
   "Shower / Bathroom Remodel",
@@ -705,7 +712,6 @@ export default function QuotePage() {
 
       // Upload photos if any
       if (hasAnyPhotos && result.quoteId) {
-        const PHOTO_API = "https://quotes.johnsontileinstallation.com/api/quote/photos";
 
         if (areaPhotos.length > 0) {
           const areaForm = new FormData();
