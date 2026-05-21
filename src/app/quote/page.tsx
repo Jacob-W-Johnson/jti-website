@@ -755,6 +755,13 @@ export default function QuotePage() {
           hasPhotos: hasAnyPhotos,
           hasAreaPhotos: allProjects.some((p) => (p.areaPhotos?.length || 0) > 0),
           hasTilePhotos: allProjects.some((p) => (p.tilePhotos?.length || 0) > 0),
+          // Diagnostic: per-project photo counts at submit time (visible in backend logs)
+          _photoCounts: allProjects.map((p, i) => ({
+            idx: i,
+            projectName: p.categoryLabel || p.projectType || "?",
+            area: p.areaPhotos?.length || 0,
+            tile: p.tilePhotos?.length || 0,
+          })),
           photoUrls: [],
         }),
       });
