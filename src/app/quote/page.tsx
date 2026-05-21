@@ -783,6 +783,42 @@ export default function QuotePage() {
       if (hasAnyPhotos && result.quoteId) {
         const uploadTasks: Promise<void>[] = [];
 
+        // Diagnostic: send a synchronous beacon to the backend BEFORE the actual
+        // photo uploads so we can see what the frontend thinks each project has.
+        // Detects e.g. an iOS race where File objects become invalid between
+        // snapshot and upload.
+        try {
+          const diagPayload = {
+            quoteId: result.quoteId,
+            projects: allProjects.map((p, i) => ({
+              idx: i,
+              projectName: p.categoryLabel || p.projectType || "",
+              areaPhotos: (p.areaPhotos || []).map((f) => ({
+                name: f?.name,
+                size: f?.size,
+                type: f?.type,
+                lastModified: f?.lastModified,
+                isFile: f instanceof File,
+              })),
+              tilePhotos: (p.tilePhotos || []).map((f) => ({
+                name: f?.name,
+                size: f?.size,
+                type: f?.type,
+                lastModified: f?.lastModified,
+                isFile: f instanceof File,
+              })),
+            })),
+          };
+          // Fire-and-forget — diagnostic only
+          fetch(PHOTO_API.replace("/photos", "/photo-diag"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(diagPayload),
+          }).catch(() => {});
+        } catch (_) {
+          // diagnostic failure — ignore
+        }
+
         async function postPhotos(form: FormData, projName: string, kind: string) {
           try {
             const res = await fetch(PHOTO_API, { method: "POST", body: form });
@@ -807,21 +843,31 @@ export default function QuotePage() {
           const projName = proj.categoryLabel || proj.projectType || "";
 
           if ((proj.areaPhotos?.length || 0) > 0) {
-            const form = new FormData();
-            form.append("quoteId", result.quoteId);
-            form.append("category", "area");
-            if (projName) form.append("projectName", projName);
-            for (const file of proj.areaPhotos) form.append("photos", file);
-            uploadTasks.push(postPhotos(form, projName, "area"));
+            try {
+              const form = new FormData();
+              form.append("quoteId", result.quoteId);
+              form.append("category", "area");
+              if (projName) form.append("projectName", projName);
+              for (const file of proj.areaPhotos) form.append("photos", file);
+              uploadTasks.push(postPhotos(form, projName, "area"));
+            } catch (err) {
+              photoFailures.push(`area photos for '${projName}' (FormData construction error)`);
+              console.error(`Failed to build FormData for project '${projName}' area:`, err);
+            }
           }
 
           if ((proj.tilePhotos?.length || 0) > 0) {
-            const form = new FormData();
-            form.append("quoteId", result.quoteId);
-            form.append("category", "tile");
-            if (projName) form.append("projectName", projName);
-            for (const file of proj.tilePhotos) form.append("photos", file);
-            uploadTasks.push(postPhotos(form, projName, "tile"));
+            try {
+              const form = new FormData();
+              form.append("quoteId", result.quoteId);
+              form.append("category", "tile");
+              if (projName) form.append("projectName", projName);
+              for (const file of proj.tilePhotos) form.append("photos", file);
+              uploadTasks.push(postPhotos(form, projName, "tile"));
+            } catch (err) {
+              photoFailures.push(`tile photos for '${projName}' (FormData construction error)`);
+              console.error(`Failed to build FormData for project '${projName}' tile:`, err);
+            }
           }
         }
 
