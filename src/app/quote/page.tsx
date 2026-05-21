@@ -10,6 +10,7 @@ const QUOTE_API =
 const PHOTO_API =
   process.env.NEXT_PUBLIC_PHOTO_API_URL ||
   "https://quotes.johnsontileinstallation.com/api/quote/photos";
+const PHOTO_STAGE_API = PHOTO_API.replace(/\/photos$/, "/photos-stage");
 
 const PROJECT_TYPES = [
   "Bathroom Remodel",
@@ -139,6 +140,15 @@ type AreaEntry = {
   tileSize: TileSize;
 };
 
+// A staged photo — uploaded to blob immediately when the customer picks it.
+// Stored as plain data (URL + metadata strings) so it survives navigation
+// across the multi-step form even if iOS evicts the original File object.
+type StagedPhoto = {
+  url: string;
+  filename: string;
+  category: "area" | "tile";
+};
+
 // A project the user has finished filling out (snapshotted from the live form).
 // Each project has its own photos so multi-project quotes keep them separated.
 type SavedProject = {
@@ -149,8 +159,8 @@ type SavedProject = {
   features: string[];
   details: string;
   includeSchluterMaterials: string;
-  areaPhotos: File[];
-  tilePhotos: File[];
+  areaPhotos: StagedPhoto[];
+  tilePhotos: StagedPhoto[];
 };
 
 function tileSqft(size: TileSize): number {
@@ -493,8 +503,17 @@ export default function QuotePage() {
 
   // Photos — POOLED across all projects (not per-project)
   const [declinePhotos, setDeclinePhotos] = useState(false);
-  const [areaPhotos, setAreaPhotos] = useState<File[]>([]);
-  const [tilePhotos, setTilePhotos] = useState<File[]>([]);
+  const [areaPhotos, setAreaPhotos] = useState<StagedPhoto[]>([]);
+  const [tilePhotos, setTilePhotos] = useState<StagedPhoto[]>([]);
+
+  // Photo-staging UX state
+  const [photoStaging, setPhotoStaging] = useState<{ area: boolean; tile: boolean }>({ area: false, tile: false });
+  const [photoStageError, setPhotoStageError] = useState("");
+  // Stable per-session id so blob staging paths group nicely
+  const photoSessionIdRef = useRef<string>("");
+  if (!photoSessionIdRef.current) {
+    photoSessionIdRef.current = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
 
   // When project type changes, seed default areas
   function initAreasForProject(pt: string) {
@@ -650,6 +669,69 @@ export default function QuotePage() {
     return typeLabel;
   }
 
+  // Stage a freshly-picked photo to blob immediately. Returns the staged
+  // photo metadata (URL + filename + category) which we keep in React state
+  // instead of the raw File object — survives iOS Safari memory eviction.
+  async function stagePhoto(file: File, category: "area" | "tile"): Promise<StagedPhoto | null> {
+    const form = new FormData();
+    form.append("photo", file);
+    form.append("category", category);
+    form.append("sessionId", photoSessionIdRef.current);
+    try {
+      const res = await fetch(PHOTO_STAGE_API, { method: "POST", body: form });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error(`[stagePhoto] HTTP ${res.status}`, data);
+        return null;
+      }
+      const data = await res.json();
+      if (!data?.url) {
+        console.error("[stagePhoto] missing url in response", data);
+        return null;
+      }
+      return {
+        url: data.url,
+        filename: data.filename || file.name,
+        category,
+      };
+    } catch (err) {
+      console.error("[stagePhoto] network error", err);
+      return null;
+    }
+  }
+
+  async function handlePhotoSelect(files: FileList | null, category: "area" | "tile") {
+    if (!files || files.length === 0) return;
+    setPhotoStageError("");
+    setPhotoStaging((prev) => ({ ...prev, [category]: true }));
+    try {
+      const uploaded: StagedPhoto[] = [];
+      const failed: string[] = [];
+      // Upload sequentially to avoid hammering iOS Safari with parallel large file POSTs
+      for (const file of Array.from(files)) {
+        const staged = await stagePhoto(file, category);
+        if (staged) uploaded.push(staged);
+        else failed.push(file.name);
+      }
+      if (uploaded.length > 0) {
+        if (category === "area") setAreaPhotos((prev) => [...prev, ...uploaded]);
+        else setTilePhotos((prev) => [...prev, ...uploaded]);
+      }
+      if (failed.length > 0) {
+        setPhotoStageError(
+          `Could not upload: ${failed.join(", ")}. Please try again or pick a different photo.`
+        );
+      }
+    } finally {
+      setPhotoStaging((prev) => ({ ...prev, [category]: false }));
+    }
+  }
+
+  function removeStagedPhoto(category: "area" | "tile", index: number) {
+    if (category === "area") setAreaPhotos((prev) => prev.filter((_, i) => i !== index));
+    else setTilePhotos((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     setError("");
@@ -753,16 +835,25 @@ export default function QuotePage() {
           // New: full list of projects
           projects: projectsPayload,
           hasPhotos: hasAnyPhotos,
-          hasAreaPhotos: allProjects.some((p) => (p.areaPhotos?.length || 0) > 0),
-          hasTilePhotos: allProjects.some((p) => (p.tilePhotos?.length || 0) > 0),
-          // Diagnostic: per-project photo counts at submit time (visible in backend logs)
-          _photoCounts: allProjects.map((p, i) => ({
-            idx: i,
-            projectName: p.categoryLabel || p.projectType || "?",
-            area: p.areaPhotos?.length || 0,
-            tile: p.tilePhotos?.length || 0,
-          })),
-          photoUrls: [],
+          // Photos already uploaded to blob via /api/quote/photos-stage —
+          // pass URLs so the backend can create QuotePhoto rows directly.
+          stagedPhotos: allProjects.flatMap((p) => {
+            const projName = p.categoryLabel || p.projectType || "";
+            return [
+              ...(p.areaPhotos || []).map((sp) => ({
+                url: sp.url,
+                category: "area",
+                projectName: projName,
+                filename: sp.filename,
+              })),
+              ...(p.tilePhotos || []).map((sp) => ({
+                url: sp.url,
+                category: "tile",
+                projectName: projName,
+                filename: sp.filename,
+              })),
+            ];
+          }),
         }),
       });
 
@@ -773,120 +864,10 @@ export default function QuotePage() {
 
       const result = await res.json();
 
-      // Upload photos per project, tagged with projectName so the quote builder
-      // can group them. Each project's area + tile photos go in separate POSTs.
-      // We track failures and surface a summary to the user instead of silently
-      // swallowing errors — previous architecture silently dropped photos that
-      // failed the backend mime/size filter, which we want to avoid here.
-      const photoFailures: string[] = [];
-      const photoSkipped: Array<{ filename: string; reason: string }> = [];
-      if (hasAnyPhotos && result.quoteId) {
-        const uploadTasks: Promise<void>[] = [];
-
-        // Diagnostic: send a synchronous beacon to the backend BEFORE the actual
-        // photo uploads so we can see what the frontend thinks each project has.
-        // Detects e.g. an iOS race where File objects become invalid between
-        // snapshot and upload.
-        try {
-          const diagPayload = {
-            quoteId: result.quoteId,
-            projects: allProjects.map((p, i) => ({
-              idx: i,
-              projectName: p.categoryLabel || p.projectType || "",
-              areaPhotos: (p.areaPhotos || []).map((f) => ({
-                name: f?.name,
-                size: f?.size,
-                type: f?.type,
-                lastModified: f?.lastModified,
-                isFile: f instanceof File,
-              })),
-              tilePhotos: (p.tilePhotos || []).map((f) => ({
-                name: f?.name,
-                size: f?.size,
-                type: f?.type,
-                lastModified: f?.lastModified,
-                isFile: f instanceof File,
-              })),
-            })),
-          };
-          // Fire-and-forget — diagnostic only
-          fetch(PHOTO_API.replace("/photos", "/photo-diag"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(diagPayload),
-          }).catch(() => {});
-        } catch (_) {
-          // diagnostic failure — ignore
-        }
-
-        async function postPhotos(form: FormData, projName: string, kind: string) {
-          try {
-            const res = await fetch(PHOTO_API, { method: "POST", body: form });
-            if (!res.ok) {
-              photoFailures.push(`${kind} photos for '${projName}' (HTTP ${res.status})`);
-              console.error(`Photo upload HTTP ${res.status} for project '${projName}' (${kind})`);
-              return;
-            }
-            const data = await res.json().catch(() => null);
-            if (data?.skipped && Array.isArray(data.skipped) && data.skipped.length > 0) {
-              for (const s of data.skipped) {
-                photoSkipped.push({ filename: s.filename || "(unknown)", reason: s.reason || "?" });
-              }
-            }
-          } catch (err) {
-            photoFailures.push(`${kind} photos for '${projName}' (network error)`);
-            console.error(`Photo upload network error for project '${projName}' (${kind}):`, err);
-          }
-        }
-
-        for (const proj of allProjects) {
-          const projName = proj.categoryLabel || proj.projectType || "";
-
-          if ((proj.areaPhotos?.length || 0) > 0) {
-            try {
-              const form = new FormData();
-              form.append("quoteId", result.quoteId);
-              form.append("category", "area");
-              if (projName) form.append("projectName", projName);
-              for (const file of proj.areaPhotos) form.append("photos", file);
-              uploadTasks.push(postPhotos(form, projName, "area"));
-            } catch (err) {
-              photoFailures.push(`area photos for '${projName}' (FormData construction error)`);
-              console.error(`Failed to build FormData for project '${projName}' area:`, err);
-            }
-          }
-
-          if ((proj.tilePhotos?.length || 0) > 0) {
-            try {
-              const form = new FormData();
-              form.append("quoteId", result.quoteId);
-              form.append("category", "tile");
-              if (projName) form.append("projectName", projName);
-              for (const file of proj.tilePhotos) form.append("photos", file);
-              uploadTasks.push(postPhotos(form, projName, "tile"));
-            } catch (err) {
-              photoFailures.push(`tile photos for '${projName}' (FormData construction error)`);
-              console.error(`Failed to build FormData for project '${projName}' tile:`, err);
-            }
-          }
-        }
-
-        await Promise.all(uploadTasks);
-      }
-
-      // If any photos were skipped or failed, surface to the user. Quote was
-      // saved successfully, so we don't fail the whole submit — just warn.
-      if (photoFailures.length > 0 || photoSkipped.length > 0) {
-        const messages: string[] = [];
-        if (photoFailures.length > 0) {
-          messages.push(`Failed to upload: ${photoFailures.join(", ")}.`);
-        }
-        if (photoSkipped.length > 0) {
-          const fileList = photoSkipped.map((s) => s.filename).join(", ");
-          messages.push(`Some photos were not accepted (${fileList}). They may be in an unsupported format. Please email them to us directly.`);
-        }
-        setPhotoWarning(messages.join(" "));
-      }
+      // Photos are already uploaded (staged at /api/quote/photos-stage when
+      // the customer picked them). The quote-request route created the
+      // QuotePhoto rows from the stagedPhotos field we sent above. Nothing
+      // to do here.
 
       setSubmitted(true);
     } catch (err) {
@@ -1101,41 +1082,68 @@ export default function QuotePage() {
                   <p className="text-sm font-medium text-gray-700 mb-2">Photos of the area to be tiled</p>
                   <p className="text-gray-500 text-xs mb-3">This helps us give you the most accurate estimate.</p>
                   <label htmlFor="area-photo-upload"
-                    className="block w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-navy hover:bg-navy/5 transition-all">
+                    className={`block w-full border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${photoStaging.area ? "border-gray-300 bg-gray-50 cursor-wait" : "border-gray-300 hover:border-navy hover:bg-navy/5"}`}>
                     <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p className="text-navy font-medium text-sm">Tap to add area photos</p>
+                    <p className="text-navy font-medium text-sm">{photoStaging.area ? "Uploading…" : "Tap to add area photos"}</p>
                     <p className="text-gray-400 text-xs mt-1">Shower, floor, walls, kitchen, etc.</p>
                   </label>
                   <input id="area-photo-upload" type="file" accept="image/*" multiple className="hidden"
+                    disabled={photoStaging.area}
                     onChange={(e) => {
-                      if (e.target.files) setAreaPhotos(Array.from(e.target.files));
-                      // Reset the input value so re-tapping the same file works
-                      // and stale FileList doesn't linger across project switches
+                      const files = e.target.files;
+                      // Clear input value FIRST so re-picking same file works
                       e.target.value = "";
+                      handlePhotoSelect(files, "area");
                     }} />
-                  {areaPhotos.length > 0 && <p className="mt-2 text-sm text-navy font-medium">{areaPhotos.length} area photo{areaPhotos.length > 1 ? "s" : ""} selected</p>}
+                  {areaPhotos.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {areaPhotos.map((p, i) => (
+                        <li key={p.url} className="flex items-center justify-between text-sm">
+                          <span className="text-navy font-medium truncate flex-1">✓ {p.filename}</span>
+                          <button type="button" onClick={() => removeStagedPhoto("area", i)} className="text-red-600 text-xs ml-3 hover:underline">Remove</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">Photos of your tile</p>
                   <p className="text-gray-500 text-xs mb-3">If you have your tile picked out, a photo helps us prepare.</p>
                   <label htmlFor="tile-photo-upload"
-                    className="block w-full border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-navy hover:bg-navy/5 transition-all">
+                    className={`block w-full border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${photoStaging.tile ? "border-gray-300 bg-gray-50 cursor-wait" : "border-gray-300 hover:border-navy hover:bg-navy/5"}`}>
                     <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                     </svg>
-                    <p className="text-navy font-medium text-sm">Tap to add tile photos</p>
+                    <p className="text-navy font-medium text-sm">{photoStaging.tile ? "Uploading…" : "Tap to add tile photos"}</p>
                     <p className="text-gray-400 text-xs mt-1">Box label, store listing, or the tile itself</p>
                   </label>
                   <input id="tile-photo-upload" type="file" accept="image/*" multiple className="hidden"
+                    disabled={photoStaging.tile}
                     onChange={(e) => {
-                      if (e.target.files) setTilePhotos(Array.from(e.target.files));
+                      const files = e.target.files;
                       e.target.value = "";
+                      handlePhotoSelect(files, "tile");
                     }} />
-                  {tilePhotos.length > 0 && <p className="mt-2 text-sm text-navy font-medium">{tilePhotos.length} tile photo{tilePhotos.length > 1 ? "s" : ""} selected</p>}
+                  {tilePhotos.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {tilePhotos.map((p, i) => (
+                        <li key={p.url} className="flex items-center justify-between text-sm">
+                          <span className="text-navy font-medium truncate flex-1">✓ {p.filename}</span>
+                          <button type="button" onClick={() => removeStagedPhoto("tile", i)} className="text-red-600 text-xs ml-3 hover:underline">Remove</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
+
+                {photoStageError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-red-700 text-sm">{photoStageError}</p>
+                  </div>
+                )}
               </>
             )}
 
