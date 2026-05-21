@@ -2,7 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 
-const QUOTE_API = "https://quotes.johnsontileinstallation.com/api/quote/request";
+// Allow override via NEXT_PUBLIC_QUOTE_API_URL so branch previews can hit a matching backend preview.
+// Falls back to the live production endpoint for main + local dev.
+const QUOTE_API =
+  process.env.NEXT_PUBLIC_QUOTE_API_URL ||
+  "https://quotes.johnsontileinstallation.com/api/quote/request";
+const PHOTO_API =
+  process.env.NEXT_PUBLIC_PHOTO_API_URL ||
+  "https://quotes.johnsontileinstallation.com/api/quote/photos";
 
 const PROJECT_TYPES = [
   "Shower / Bathroom Remodel",
@@ -95,6 +102,18 @@ type AreaEntry = {
   areaType: string;
   sqft: string;
   tileSize: TileSize;
+};
+
+// A project the user has finished filling out (snapshotted from the live form).
+// Photos are pooled at the top level, not per-project.
+type SavedProject = {
+  id: string;
+  projectType: string;
+  categoryLabel: string;
+  areas: AreaEntry[];
+  features: string[];
+  details: string;
+  includeSchluterMaterials: string;
 };
 
 function tileSqft(size: TileSize): number {
@@ -420,17 +439,21 @@ export default function QuotePage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
 
-  // Project
+  // Multi-project model: list of saved projects + the one currently being filled
+  // currentProject is "live" form state. On review, user can Add another -> save current and start fresh.
+  // editingIndex !== null means we loaded a saved project back into currentProject to edit; saving updates that index instead of appending.
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  // Current-project state (the form being filled right now)
   const [projectType, setProjectType] = useState("");
   const [categoryLabel, setCategoryLabel] = useState("");
-
-  // Details — dynamic areas list
   const [areas, setAreas] = useState<AreaEntry[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [details, setDetails] = useState("");
   const [includeSchluterMaterials, setIncludeSchluterMaterials] = useState("");
 
-  // Photos
+  // Photos — POOLED across all projects (not per-project)
   const [declinePhotos, setDeclinePhotos] = useState(false);
   const [areaPhotos, setAreaPhotos] = useState<File[]>([]);
   const [tilePhotos, setTilePhotos] = useState<File[]>([]);
@@ -453,6 +476,72 @@ export default function QuotePage() {
         tileSize: { ...emptyTileSize },
       }))
     );
+  }
+
+  // Snapshot the current form into a SavedProject
+  function snapshotCurrentProject(): SavedProject {
+    return {
+      id: makeAreaId(),
+      projectType,
+      categoryLabel,
+      areas,
+      features,
+      details,
+      includeSchluterMaterials,
+    };
+  }
+
+  // Reset the current-project form to blank (keeps contact + photos intact)
+  function resetCurrentProject() {
+    setProjectType("");
+    setCategoryLabel("");
+    setAreas([]);
+    setFeatures([]);
+    setDetails("");
+    setIncludeSchluterMaterials("");
+    setEditingIndex(null);
+  }
+
+  // Persist current form into savedProjects (append OR replace if editing)
+  function commitCurrentProject() {
+    const snap = snapshotCurrentProject();
+    if (editingIndex !== null) {
+      setSavedProjects((prev) => prev.map((p, i) => (i === editingIndex ? snap : p)));
+    } else {
+      setSavedProjects((prev) => [...prev, snap]);
+    }
+  }
+
+  // Add another project: save current, reset form, jump to project step
+  function addAnotherProject() {
+    commitCurrentProject();
+    resetCurrentProject();
+    setStep("project");
+  }
+
+  // Load a saved project back into the form (Edit from review page)
+  function editSavedProject(index: number) {
+    const p = savedProjects[index];
+    if (!p) return;
+    setProjectType(p.projectType);
+    setCategoryLabel(p.categoryLabel);
+    setAreas(p.areas);
+    setFeatures(p.features);
+    setDetails(p.details);
+    setIncludeSchluterMaterials(p.includeSchluterMaterials);
+    setEditingIndex(index);
+    setStep("project");
+  }
+
+  // Remove a saved project entirely. If it's the one currently being edited, reset the live form too.
+  function removeSavedProject(index: number) {
+    setSavedProjects((prev) => prev.filter((_, i) => i !== index));
+    if (editingIndex === index) {
+      resetCurrentProject();
+    } else if (editingIndex !== null && index < editingIndex) {
+      // Indices shifted left by one
+      setEditingIndex(editingIndex - 1);
+    }
   }
 
   function formatPhone(value: string) {
@@ -503,21 +592,6 @@ export default function QuotePage() {
     setAreas((prev) => prev.filter((a) => a.id !== id));
   }
 
-  // Build area data for submission
-  function buildAreaData(area: AreaEntry) {
-    if (!area.sqft) return null;
-    return {
-      areaType: area.areaType,
-      sqft: parseFloat(area.sqft) || 0,
-      tileShape: area.tileSize.shape,
-      tileDim1: area.tileSize.dim1,
-      tileDim2: area.tileSize.dim2,
-      tileHexSize: area.tileSize.hexSize,
-      tileSqft: tileSqft(area.tileSize),
-      tileDescription: tileDisplayLabel(area.tileSize),
-    };
-  }
-
   function areaDisplayName(area: AreaEntry): string {
     const typeLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label ||
       AREA_TYPES_BY_PROJECT["Other"]?.find((o) => o.key === area.areaType)?.label ||
@@ -530,8 +604,6 @@ export default function QuotePage() {
     setError("");
 
     try {
-      const builtAreas = areas.map(buildAreaData).filter(Boolean);
-
       const hasAnyPhotos = !declinePhotos && (areaPhotos.length > 0 || tilePhotos.length > 0);
 
       const serviceNameMap: Record<string, string> = {
@@ -542,6 +614,70 @@ export default function QuotePage() {
         backsplash: "Backsplash",
       };
 
+      // Combine saved projects + the live current project (if it has content)
+      // Editing case: current project is a copy of savedProjects[editingIndex] — replace, don't append
+      const allProjects: SavedProject[] = (() => {
+        const liveHasContent = projectType && (areas.some((a) => a.sqft) || categoryLabel.trim());
+        if (!liveHasContent) return savedProjects;
+        const liveSnap = snapshotCurrentProject();
+        if (editingIndex !== null) {
+          return savedProjects.map((p, i) => (i === editingIndex ? liveSnap : p));
+        }
+        return [...savedProjects, liveSnap];
+      })();
+
+      // Build per-project payload entries
+      const projectsPayload = allProjects.map((proj) => {
+        const builtAreas = proj.areas
+          .map((area) => {
+            if (!area.sqft) return null;
+            return {
+              areaType: area.areaType,
+              sqft: parseFloat(area.sqft) || 0,
+              tileShape: area.tileSize.shape,
+              tileDim1: area.tileSize.dim1,
+              tileDim2: area.tileSize.dim2,
+              tileHexSize: area.tileSize.hexSize,
+              tileSqft: tileSqft(area.tileSize),
+              tileDescription: tileDisplayLabel(area.tileSize),
+            };
+          })
+          .filter(Boolean);
+
+        const squareFootage =
+          builtAreas
+            .map((a) => {
+              const area = a as { areaType: string; sqft: number; tileDescription: string };
+              const baseName = serviceNameMap[area.areaType] || area.areaType;
+              return `${baseName}: ${area.sqft} sqft (${area.tileDescription})`;
+            })
+            .join(", ") || undefined;
+
+        const projectDetails =
+          [
+            proj.categoryLabel && `Project name: ${proj.categoryLabel}`,
+            proj.includeSchluterMaterials &&
+              `Schluter setting materials: ${proj.includeSchluterMaterials}`,
+            proj.details && proj.details,
+          ]
+            .filter(Boolean)
+            .join("\n") || undefined;
+
+        return {
+          projectType: proj.projectType,
+          projectName: proj.categoryLabel || undefined,
+          squareFootage,
+          areas: builtAreas,
+          features: proj.features.length > 0 ? proj.features : undefined,
+          includeSchluterMaterials: proj.includeSchluterMaterials === "Yes",
+          projectDetails,
+        };
+      });
+
+      // Top-level legacy fields (first project) for backward compat with current backend.
+      // Backend will be updated to prefer `projects` when present; this fallback keeps a deploy gap safe.
+      const first = projectsPayload[0];
+
       const res = await fetch(QUOTE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -550,21 +686,16 @@ export default function QuotePage() {
           customerPhone: phone,
           customerEmail: email || undefined,
           siteAddress: address,
-          projectType,
-          projectName: categoryLabel || undefined,
-          squareFootage: builtAreas.map((a) => {
-            const area = a as { areaType: string; sqft: number; tileDescription: string };
-            const baseName = serviceNameMap[area.areaType] || area.areaType;
-            return `${baseName}: ${area.sqft} sqft (${area.tileDescription})`;
-          }).join(", ") || undefined,
-          areas: builtAreas,
-          features: features.length > 0 ? features : undefined,
-          includeSchluterMaterials: includeSchluterMaterials === "Yes",
-          projectDetails: [
-            categoryLabel && `Project name: ${categoryLabel}`,
-            includeSchluterMaterials && `Schluter setting materials: ${includeSchluterMaterials}`,
-            details && details,
-          ].filter(Boolean).join("\n") || undefined,
+          // Legacy top-level fields (backend will fall back to these if `projects` not handled)
+          projectType: first?.projectType,
+          projectName: first?.projectName,
+          squareFootage: first?.squareFootage,
+          areas: first?.areas,
+          features: first?.features,
+          includeSchluterMaterials: first?.includeSchluterMaterials,
+          projectDetails: first?.projectDetails,
+          // New: full list of projects
+          projects: projectsPayload,
           hasPhotos: hasAnyPhotos,
           hasAreaPhotos: areaPhotos.length > 0,
           hasTilePhotos: tilePhotos.length > 0,
@@ -581,7 +712,6 @@ export default function QuotePage() {
 
       // Upload photos if any
       if (hasAnyPhotos && result.quoteId) {
-        const PHOTO_API = "https://quotes.johnsontileinstallation.com/api/quote/photos";
 
         if (areaPhotos.length > 0) {
           const areaForm = new FormData();
@@ -875,23 +1005,97 @@ export default function QuotePage() {
                 <p className="text-gray-600 text-sm">{address}</p>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-5 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project</h3>
-                <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
-                {areas.filter((a) => a.sqft).map((area) => (
-                  <p key={area.id} className="text-gray-600 text-sm">
-                    {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
-                  </p>
-                ))}
-                {areas.filter((a) => !a.sqft && a.areaType).map((area) => (
-                  <p key={area.id} className="text-gray-600 text-sm">
-                    {areaDisplayName(area)}: sqft not specified — {tileDisplayLabel(area.tileSize) || "not specified"}
-                  </p>
-                ))}
-                {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
-                {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
-                {details && <p className="text-gray-600 text-sm">{details}</p>}
-              </div>
+              {/* Render each saved project as a card. When editing, the live form's content overrides the snapshot at that index. */}
+              {savedProjects.map((savedProj, index) => {
+                const isBeingEdited = editingIndex === index;
+                // When this slot is being edited, render the live state instead of the snapshot
+                const proj: SavedProject = isBeingEdited
+                  ? {
+                      id: savedProj.id,
+                      projectType,
+                      categoryLabel,
+                      areas,
+                      features,
+                      details,
+                      includeSchluterMaterials,
+                    }
+                  : savedProj;
+                const projIsFloor = proj.projectType === "Floor Tile";
+                const projAreaTypeOptions = AREA_TYPES_BY_PROJECT[proj.projectType] || [];
+                const projAreaDisplayName = (a: AreaEntry) =>
+                  projAreaTypeOptions.find((o) => o.key === a.areaType)?.label ||
+                  AREA_TYPES_BY_PROJECT["Other"]?.find((o) => o.key === a.areaType)?.label ||
+                  a.areaType;
+                return (
+                  <div key={savedProj.id} className="bg-gray-50 rounded-xl p-5 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                        Project {index + 1}{isBeingEdited ? " (editing)" : ""}
+                      </h3>
+                      <div className="flex gap-2 text-xs">
+                        {!isBeingEdited && (
+                          <button
+                            onClick={() => editSavedProject(index)}
+                            className="text-navy font-medium hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={() => removeSavedProject(index)}
+                          className="text-red-600 font-medium hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-navy font-medium">
+                      {proj.projectType}
+                      {proj.categoryLabel ? ` — ${proj.categoryLabel}` : ""}
+                    </p>
+                    {proj.areas.filter((a) => a.sqft).map((area) => (
+                      <p key={area.id} className="text-gray-600 text-sm">
+                        {projAreaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
+                      </p>
+                    ))}
+                    {proj.features.length > 0 && (
+                      <p className="text-gray-600 text-sm">{proj.features.join(", ")}</p>
+                    )}
+                    {proj.includeSchluterMaterials && (
+                      <p className="text-gray-600 text-sm">
+                        {projIsFloor ? "Schluter setting materials" : "Waterproofing materials"}: {proj.includeSchluterMaterials}
+                      </p>
+                    )}
+                    {proj.details && <p className="text-gray-600 text-sm">{proj.details}</p>}
+                  </div>
+                );
+              })}
+
+              {/* Live (current, not-yet-saved) project — only shown if it has content and we're NOT editing a saved one */}
+              {projectType && editingIndex === null && (
+                <div className="bg-gray-50 rounded-xl p-5 space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    Project {savedProjects.length + 1}
+                  </h3>
+                  <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
+                  {areas.filter((a) => a.sqft).map((area) => (
+                    <p key={area.id} className="text-gray-600 text-sm">
+                      {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
+                    </p>
+                  ))}
+                  {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
+                  {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
+                  {details && <p className="text-gray-600 text-sm">{details}</p>}
+                </div>
+              )}
+
+              {/* Add another project button */}
+              <button
+                onClick={addAnotherProject}
+                className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 font-medium text-sm hover:border-navy hover:text-navy hover:bg-navy/5 transition-all"
+              >
+                + Add another project
+              </button>
 
               <div className="bg-gray-50 rounded-xl p-5 space-y-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Photos</h3>
