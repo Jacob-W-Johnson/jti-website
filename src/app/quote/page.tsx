@@ -1058,11 +1058,6 @@ export default function QuotePage() {
                         {projAreaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
                       </p>
                     ))}
-                    {proj.areas.filter((a) => !a.sqft && a.areaType).map((area) => (
-                      <p key={area.id} className="text-gray-600 text-sm">
-                        {projAreaDisplayName(area)}: sqft not specified — {tileDisplayLabel(area.tileSize) || "not specified"}
-                      </p>
-                    ))}
                     {proj.features.length > 0 && (
                       <p className="text-gray-600 text-sm">{proj.features.join(", ")}</p>
                     )}
@@ -1086,11 +1081,6 @@ export default function QuotePage() {
                   {areas.filter((a) => a.sqft).map((area) => (
                     <p key={area.id} className="text-gray-600 text-sm">
                       {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
-                    </p>
-                  ))}
-                  {areas.filter((a) => !a.sqft && a.areaType).map((area) => (
-                    <p key={area.id} className="text-gray-600 text-sm">
-                      {areaDisplayName(area)}: sqft not specified — {tileDisplayLabel(area.tileSize) || "not specified"}
                     </p>
                   ))}
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
