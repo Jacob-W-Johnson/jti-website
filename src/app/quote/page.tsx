@@ -12,51 +12,86 @@ const PHOTO_API =
   "https://quotes.johnsontileinstallation.com/api/quote/photos";
 
 const PROJECT_TYPES = [
-  "Shower / Bathroom Remodel",
+  "Bathroom Remodel",
+  "Shower",
+  "Tub Surround",
   "Floor Tile",
-  "Backsplash",
+  "Backsplash Tile",
   "Tile Repair",
   "Other",
 ];
 
-const SHOWER_FEATURES = [
-  "Niche (built-in shelf)",
-  "Corner Bench",
-  "Floating Bench",
-  "Corner Shelf",
-  "Custom Curb",
-  "Schluter Drain",
-];
+// Features available per project type
+const FEATURES_BY_PROJECT: Record<string, string[]> = {
+  "Bathroom Remodel": [
+    "Niche (built-in shelf)",
+    "Corner Bench",
+    "Floating Bench",
+    "Corner Shelf",
+    "Custom Curb",
+    "Schluter Drain",
+  ],
+  "Shower": [
+    "Niche (built-in shelf)",
+    "Corner Bench",
+    "Floating Bench",
+    "Corner Shelf",
+    "Custom Curb",
+    "Schluter Drain",
+  ],
+  "Tub Surround": [
+    "Niche (built-in shelf)",
+    "Corner Shelf",
+  ],
+  "Floor Tile": [],
+  "Backsplash Tile": [],
+  "Tile Repair": [],
+  "Other": [
+    "Niche (built-in shelf)",
+    "Corner Bench",
+    "Floating Bench",
+    "Corner Shelf",
+    "Custom Curb",
+    "Schluter Drain",
+  ],
+};
 
 // Area types available per project type
 const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = {
-  "Shower / Bathroom Remodel": [
-    { key: "shower_floor", label: "Shower Floor" },
+  "Bathroom Remodel": [
     { key: "bathroom_floor", label: "Bathroom Floor" },
+    { key: "shower_floor", label: "Shower Floor" },
     { key: "shower_walls", label: "Shower Walls" },
-    { key: "floor", label: "Floor" },
+    { key: "tub_surround_walls", label: "Tub Surround Walls" },
     { key: "backsplash", label: "Backsplash" },
+  ],
+  "Shower": [
+    { key: "shower_floor", label: "Shower Floor" },
+    { key: "shower_walls", label: "Shower Walls" },
+  ],
+  "Tub Surround": [
+    { key: "tub_surround_walls", label: "Tub Surround Walls" },
   ],
   "Floor Tile": [
     { key: "floor", label: "Floor" },
     { key: "bathroom_floor", label: "Bathroom Floor" },
     { key: "backsplash", label: "Backsplash" },
   ],
-  "Backsplash": [
+  "Backsplash Tile": [
     { key: "backsplash", label: "Backsplash" },
-    { key: "floor", label: "Floor" },
   ],
   "Tile Repair": [
     { key: "shower_floor", label: "Shower Floor" },
-    { key: "bathroom_floor", label: "Bathroom Floor" },
     { key: "shower_walls", label: "Shower Walls" },
     { key: "floor", label: "Floor" },
     { key: "backsplash", label: "Backsplash" },
+    { key: "bathroom_floor", label: "Bathroom Floor" },
   ],
   "Other": [
     { key: "shower_floor", label: "Shower Floor" },
     { key: "bathroom_floor", label: "Bathroom Floor" },
     { key: "shower_walls", label: "Shower Walls" },
+    { key: "tub_surround_walls", label: "Tub Surround Walls" },
     { key: "floor", label: "Floor" },
     { key: "backsplash", label: "Backsplash" },
   ],
@@ -461,9 +496,11 @@ export default function QuotePage() {
   // When project type changes, seed default areas
   function initAreasForProject(pt: string) {
     const defaults: Record<string, string[]> = {
-      "Shower / Bathroom Remodel": ["shower_floor", "bathroom_floor", "shower_walls"],
+      "Bathroom Remodel": ["bathroom_floor", "shower_floor", "shower_walls"],
+      "Shower": ["shower_floor", "shower_walls"],
+      "Tub Surround": ["tub_surround_walls"],
       "Floor Tile": ["floor"],
-      "Backsplash": ["backsplash"],
+      "Backsplash Tile": ["backsplash"],
       "Tile Repair": [],
       "Other": [],
     };
@@ -557,14 +594,17 @@ export default function QuotePage() {
     );
   }
 
-  const isShower = projectType === "Shower / Bathroom Remodel";
+  const isShower = projectType === "Shower" || projectType === "Bathroom Remodel" || projectType === "Tub Surround";
   const isFloor = projectType === "Floor Tile";
   const areaTypeOptions = AREA_TYPES_BY_PROJECT[projectType] || [];
+  const featureOptions = FEATURES_BY_PROJECT[projectType] || [];
 
   const CATEGORY_LABEL_PLACEHOLDERS: Record<string, string> = {
-    "Shower / Bathroom Remodel": "e.g. Master Bath, Guest Bath",
+    "Bathroom Remodel": "e.g. Master Bath, Guest Bath",
+    "Shower": "e.g. Master Shower, Guest Shower",
+    "Tub Surround": "e.g. Hall Bath Tub Surround",
     "Floor Tile": "e.g. Kitchen Floor, Living Room Floor",
-    "Backsplash": "e.g. Kitchen Backsplash, Bar Backsplash",
+    "Backsplash Tile": "e.g. Kitchen Backsplash, Bar Backsplash",
     "Tile Repair": "e.g. Master Shower Repair",
     "Other": "e.g. Fireplace Surround",
   };
@@ -610,6 +650,7 @@ export default function QuotePage() {
         shower_floor: "Shower Floor",
         bathroom_floor: "Bathroom Floor",
         shower_walls: "Shower Walls",
+        tub_surround_walls: "Tub Surround Walls",
         floor: "Floor",
         backsplash: "Backsplash",
       };
@@ -884,11 +925,11 @@ export default function QuotePage() {
               + Add Another Area
             </button>
 
-            {isShower && (
+            {featureOptions.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Features you want (select all that apply)</label>
                 <div className="space-y-2">
-                  {SHOWER_FEATURES.map((f) => (
+                  {featureOptions.map((f) => (
                     <button key={f} onClick={() => toggleFeature(f)}
                       className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
                         features.includes(f) ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
