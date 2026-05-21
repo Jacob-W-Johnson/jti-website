@@ -1063,7 +1063,12 @@ export default function QuotePage() {
                     <p className="text-gray-400 text-xs mt-1">Shower, floor, walls, kitchen, etc.</p>
                   </label>
                   <input id="area-photo-upload" type="file" accept="image/*" multiple className="hidden"
-                    onChange={(e) => { if (e.target.files) setAreaPhotos(Array.from(e.target.files)); }} />
+                    onChange={(e) => {
+                      if (e.target.files) setAreaPhotos(Array.from(e.target.files));
+                      // Reset the input value so re-tapping the same file works
+                      // and stale FileList doesn't linger across project switches
+                      e.target.value = "";
+                    }} />
                   {areaPhotos.length > 0 && <p className="mt-2 text-sm text-navy font-medium">{areaPhotos.length} area photo{areaPhotos.length > 1 ? "s" : ""} selected</p>}
                 </div>
 
@@ -1079,7 +1084,10 @@ export default function QuotePage() {
                     <p className="text-gray-400 text-xs mt-1">Box label, store listing, or the tile itself</p>
                   </label>
                   <input id="tile-photo-upload" type="file" accept="image/*" multiple className="hidden"
-                    onChange={(e) => { if (e.target.files) setTilePhotos(Array.from(e.target.files)); }} />
+                    onChange={(e) => {
+                      if (e.target.files) setTilePhotos(Array.from(e.target.files));
+                      e.target.value = "";
+                    }} />
                   {tilePhotos.length > 0 && <p className="mt-2 text-sm text-navy font-medium">{tilePhotos.length} tile photo{tilePhotos.length > 1 ? "s" : ""} selected</p>}
                 </div>
               </>
