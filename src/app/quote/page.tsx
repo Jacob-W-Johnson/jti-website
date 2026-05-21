@@ -469,6 +469,7 @@ export default function QuotePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [photoWarning, setPhotoWarning] = useState("");
 
   // Contact
   const [name, setName] = useState("");
@@ -652,6 +653,7 @@ export default function QuotePage() {
   async function handleSubmit() {
     setSubmitting(true);
     setError("");
+    setPhotoWarning("");
 
     try {
       const serviceNameMap: Record<string, string> = {
@@ -766,8 +768,33 @@ export default function QuotePage() {
 
       // Upload photos per project, tagged with projectName so the quote builder
       // can group them. Each project's area + tile photos go in separate POSTs.
+      // We track failures and surface a summary to the user instead of silently
+      // swallowing errors — previous architecture silently dropped photos that
+      // failed the backend mime/size filter, which we want to avoid here.
+      const photoFailures: string[] = [];
+      const photoSkipped: Array<{ filename: string; reason: string }> = [];
       if (hasAnyPhotos && result.quoteId) {
-        const uploadTasks: Promise<Response | void>[] = [];
+        const uploadTasks: Promise<void>[] = [];
+
+        async function postPhotos(form: FormData, projName: string, kind: string) {
+          try {
+            const res = await fetch(PHOTO_API, { method: "POST", body: form });
+            if (!res.ok) {
+              photoFailures.push(`${kind} photos for '${projName}' (HTTP ${res.status})`);
+              console.error(`Photo upload HTTP ${res.status} for project '${projName}' (${kind})`);
+              return;
+            }
+            const data = await res.json().catch(() => null);
+            if (data?.skipped && Array.isArray(data.skipped) && data.skipped.length > 0) {
+              for (const s of data.skipped) {
+                photoSkipped.push({ filename: s.filename || "(unknown)", reason: s.reason || "?" });
+              }
+            }
+          } catch (err) {
+            photoFailures.push(`${kind} photos for '${projName}' (network error)`);
+            console.error(`Photo upload network error for project '${projName}' (${kind}):`, err);
+          }
+        }
 
         for (const proj of allProjects) {
           const projName = proj.categoryLabel || proj.projectType || "";
@@ -778,11 +805,7 @@ export default function QuotePage() {
             form.append("category", "area");
             if (projName) form.append("projectName", projName);
             for (const file of proj.areaPhotos) form.append("photos", file);
-            uploadTasks.push(
-              fetch(PHOTO_API, { method: "POST", body: form }).catch((err) => {
-                console.error(`Area photo upload failed for project '${projName}':`, err);
-              })
-            );
+            uploadTasks.push(postPhotos(form, projName, "area"));
           }
 
           if ((proj.tilePhotos?.length || 0) > 0) {
@@ -791,15 +814,25 @@ export default function QuotePage() {
             form.append("category", "tile");
             if (projName) form.append("projectName", projName);
             for (const file of proj.tilePhotos) form.append("photos", file);
-            uploadTasks.push(
-              fetch(PHOTO_API, { method: "POST", body: form }).catch((err) => {
-                console.error(`Tile photo upload failed for project '${projName}':`, err);
-              })
-            );
+            uploadTasks.push(postPhotos(form, projName, "tile"));
           }
         }
 
         await Promise.all(uploadTasks);
+      }
+
+      // If any photos were skipped or failed, surface to the user. Quote was
+      // saved successfully, so we don't fail the whole submit — just warn.
+      if (photoFailures.length > 0 || photoSkipped.length > 0) {
+        const messages: string[] = [];
+        if (photoFailures.length > 0) {
+          messages.push(`Failed to upload: ${photoFailures.join(", ")}.`);
+        }
+        if (photoSkipped.length > 0) {
+          const fileList = photoSkipped.map((s) => s.filename).join(", ");
+          messages.push(`Some photos were not accepted (${fileList}). They may be in an unsupported format. Please email them to us directly.`);
+        }
+        setPhotoWarning(messages.join(" "));
       }
 
       setSubmitted(true);
@@ -823,6 +856,12 @@ export default function QuotePage() {
           <p className="mt-4 text-gray-600 leading-relaxed">
             We received your project details and will get back to you shortly with a quote.
           </p>
+          {photoWarning && (
+            <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
+              <p className="text-sm text-amber-900 font-medium mb-1">Heads up about your photos:</p>
+              <p className="text-sm text-amber-800">{photoWarning}</p>
+            </div>
+          )}
           <a href="/" className="mt-8 inline-block text-navy font-medium hover:underline">
             Back to Home
           </a>
