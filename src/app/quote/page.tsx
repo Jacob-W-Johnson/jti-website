@@ -428,9 +428,7 @@ export default function QuotePage() {
   const [areas, setAreas] = useState<AreaEntry[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [details, setDetails] = useState("");
-  const [tileOnSite, setTileOnSite] = useState("");
   const [includeSchluterMaterials, setIncludeSchluterMaterials] = useState("");
-  const [readyDate, setReadyDate] = useState("");
 
   // Photos
   const [declinePhotos, setDeclinePhotos] = useState(false);
@@ -564,12 +562,9 @@ export default function QuotePage() {
           includeSchluterMaterials: includeSchluterMaterials === "Yes",
           projectDetails: [
             categoryLabel && `Project name: ${categoryLabel}`,
-            tileOnSite && `Tile on site: ${tileOnSite}`,
             includeSchluterMaterials && `Schluter setting materials: ${includeSchluterMaterials}`,
-            readyDate && `Ready for installation: ${readyDate}`,
             details && details,
           ].filter(Boolean).join("\n") || undefined,
-          timeline: readyDate || undefined,
           hasPhotos: hasAnyPhotos,
           hasAreaPhotos: areaPhotos.length > 0,
           hasTilePhotos: tilePhotos.length > 0,
@@ -777,20 +772,6 @@ export default function QuotePage() {
 
             {/* Questions */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Do you have your tile on site?</label>
-              <div className="flex gap-3">
-                {["Yes", "No", "Not yet"].map((opt) => (
-                  <button key={opt} onClick={() => setTileOnSite(opt)}
-                    className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm transition-all ${
-                      tileOnSite === opt ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {isFloor
                   ? "Do you want Schluter setting materials included in your quote?"
@@ -806,12 +787,6 @@ export default function QuotePage() {
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">When will you be ready for installation to start?</label>
-              <input type="text" value={readyDate} onChange={(e) => setReadyDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="e.g. Next week, March 15, ASAP" />
             </div>
 
             <div>
@@ -914,9 +889,7 @@ export default function QuotePage() {
                   </p>
                 ))}
                 {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
-                {tileOnSite && <p className="text-gray-600 text-sm">Tile on site: {tileOnSite}</p>}
                 {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
-                {readyDate && <p className="text-gray-600 text-sm">Ready to start: {readyDate}</p>}
                 {details && <p className="text-gray-600 text-sm">{details}</p>}
               </div>
 
