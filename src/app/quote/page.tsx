@@ -93,7 +93,6 @@ type TileSize = {
 type AreaEntry = {
   id: string;
   areaType: string;
-  label: string;
   sqft: string;
   tileSize: TileSize;
 };
@@ -386,18 +385,6 @@ function AreaCard({
         options={areaTypeOptions}
       />
 
-      {/* Custom label */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Label (optional)</label>
-        <input
-          type="text"
-          value={area.label}
-          onChange={(e) => onUpdate({ ...area, label: e.target.value })}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-          placeholder={`e.g. Master Bathroom, Kitchen, Guest Bath`}
-        />
-      </div>
-
       {/* Square footage */}
       <div>
         <label className="block text-xs text-gray-500 mb-1">Square footage</label>
@@ -435,6 +422,7 @@ export default function QuotePage() {
 
   // Project
   const [projectType, setProjectType] = useState("");
+  const [categoryLabel, setCategoryLabel] = useState("");
 
   // Details — dynamic areas list
   const [areas, setAreas] = useState<AreaEntry[]>([]);
@@ -463,7 +451,6 @@ export default function QuotePage() {
       areaKeys.map((key) => ({
         id: makeAreaId(),
         areaType: key,
-        label: "",
         sqft: "",
         tileSize: { ...emptyTileSize },
       }))
@@ -487,6 +474,15 @@ export default function QuotePage() {
   const isFloor = projectType === "Floor Tile";
   const areaTypeOptions = AREA_TYPES_BY_PROJECT[projectType] || [];
 
+  const CATEGORY_LABEL_PLACEHOLDERS: Record<string, string> = {
+    "Shower / Bathroom Remodel": "e.g. Master Bath, Guest Bath",
+    "Floor Tile": "e.g. Kitchen Floor, Living Room Floor",
+    "Backsplash": "e.g. Kitchen Backsplash, Bar Backsplash",
+    "Tile Repair": "e.g. Master Shower Repair",
+    "Other": "e.g. Fireplace Surround",
+  };
+  const categoryLabelPlaceholder = CATEGORY_LABEL_PLACEHOLDERS[projectType] || "Give this project a name";
+
   function addArea() {
     // Default to the first available area type
     const defaultType = areaTypeOptions[0]?.key || "floor";
@@ -495,7 +491,6 @@ export default function QuotePage() {
       {
         id: makeAreaId(),
         areaType: defaultType,
-        label: "",
         sqft: "",
         tileSize: { ...emptyTileSize },
       },
@@ -515,7 +510,6 @@ export default function QuotePage() {
     if (!area.sqft) return null;
     return {
       areaType: area.areaType,
-      label: area.label || undefined,
       sqft: parseFloat(area.sqft) || 0,
       tileShape: area.tileSize.shape,
       tileDim1: area.tileSize.dim1,
@@ -530,7 +524,6 @@ export default function QuotePage() {
     const typeLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label ||
       AREA_TYPES_BY_PROJECT["Other"]?.find((o) => o.key === area.areaType)?.label ||
       area.areaType;
-    if (area.label) return `${typeLabel} - ${area.label}`;
     return typeLabel;
   }
 
@@ -560,16 +553,17 @@ export default function QuotePage() {
           customerEmail: email || undefined,
           siteAddress: address,
           projectType,
+          projectName: categoryLabel || undefined,
           squareFootage: builtAreas.map((a) => {
-            const area = a as { areaType: string; sqft: number; tileDescription: string; label?: string };
+            const area = a as { areaType: string; sqft: number; tileDescription: string };
             const baseName = serviceNameMap[area.areaType] || area.areaType;
-            const displayName = area.label ? `${baseName} - ${area.label}` : baseName;
-            return `${displayName}: ${area.sqft} sqft (${area.tileDescription})`;
+            return `${baseName}: ${area.sqft} sqft (${area.tileDescription})`;
           }).join(", ") || undefined,
           areas: builtAreas,
           features: features.length > 0 ? features : undefined,
           includeSchluterMaterials: includeSchluterMaterials === "Yes",
           projectDetails: [
+            categoryLabel && `Project name: ${categoryLabel}`,
             tileOnSite && `Tile on site: ${tileOnSite}`,
             includeSchluterMaterials && `Schluter setting materials: ${includeSchluterMaterials}`,
             readyDate && `Ready for installation: ${readyDate}`,
@@ -728,7 +722,20 @@ export default function QuotePage() {
         {step === "details" && (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold text-navy">Project Details</h2>
-            <p className="text-gray-500 text-sm">Add each area you need tiled. You can add multiple areas and label them.</p>
+            <p className="text-gray-500 text-sm">Add each area you need tiled. You can add multiple areas.</p>
+
+            {/* Category label — required */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
+              <p className="text-gray-500 text-xs mb-2">A short name so we both know which project this is (especially useful if you have more than one).</p>
+              <input
+                type="text"
+                value={categoryLabel}
+                onChange={(e) => setCategoryLabel(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                placeholder={categoryLabelPlaceholder}
+              />
+            </div>
 
             {/* Dynamic area cards */}
             {areas.map((area, i) => (
@@ -816,7 +823,8 @@ export default function QuotePage() {
 
             <div className="flex gap-3">
               <button onClick={() => setStep("project")} className="flex-1 py-3.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">Back</button>
-              <button onClick={() => setStep("photos")} className="flex-1 py-3.5 rounded-lg text-white font-semibold bg-navy hover:bg-navy-light transition-colors">Next</button>
+              <button onClick={() => setStep("photos")} disabled={!categoryLabel.trim()}
+                className="flex-1 py-3.5 rounded-lg text-white font-semibold bg-navy hover:bg-navy-light disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">Next</button>
             </div>
           </div>
         )}
@@ -894,7 +902,7 @@ export default function QuotePage() {
 
               <div className="bg-gray-50 rounded-xl p-5 space-y-2">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Project</h3>
-                <p className="text-navy font-medium">{projectType}</p>
+                <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
                 {areas.filter((a) => a.sqft).map((area) => (
                   <p key={area.id} className="text-gray-600 text-sm">
                     {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
