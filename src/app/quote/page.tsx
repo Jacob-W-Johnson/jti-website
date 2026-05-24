@@ -700,15 +700,15 @@ export default function QuotePage() {
     }
   }
 
-  async function handlePhotoSelect(files: FileList | null, category: "area" | "tile") {
-    if (!files || files.length === 0) return;
+  async function handlePhotoSelect(files: File[], category: "area" | "tile") {
+    if (files.length === 0) return;
     setPhotoStageError("");
     setPhotoStaging((prev) => ({ ...prev, [category]: true }));
     try {
       const uploaded: StagedPhoto[] = [];
       const failed: string[] = [];
       // Upload sequentially to avoid hammering iOS Safari with parallel large file POSTs
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         const staged = await stagePhoto(file, category);
         if (staged) uploaded.push(staged);
         else failed.push(file.name);
@@ -1092,10 +1092,11 @@ export default function QuotePage() {
                   <input id="area-photo-upload" type="file" accept="image/*" multiple className="hidden"
                     disabled={photoStaging.area}
                     onChange={(e) => {
-                      const files = e.target.files;
-                      // Clear input value FIRST so re-picking same file works
+                      // Copy files to a real Array BEFORE clearing input —
+                      // iOS Safari invalidates the FileList when value is reset.
+                      const files = e.target.files ? Array.from(e.target.files) : [];
                       e.target.value = "";
-                      handlePhotoSelect(files, "area");
+                      if (files.length > 0) handlePhotoSelect(files, "area");
                     }} />
                   {areaPhotos.length > 0 && (
                     <ul className="mt-2 space-y-1">
@@ -1123,9 +1124,11 @@ export default function QuotePage() {
                   <input id="tile-photo-upload" type="file" accept="image/*" multiple className="hidden"
                     disabled={photoStaging.tile}
                     onChange={(e) => {
-                      const files = e.target.files;
+                      // Copy files to a real Array BEFORE clearing input —
+                      // iOS Safari invalidates the FileList when value is reset.
+                      const files = e.target.files ? Array.from(e.target.files) : [];
                       e.target.value = "";
-                      handlePhotoSelect(files, "tile");
+                      if (files.length > 0) handlePhotoSelect(files, "tile");
                     }} />
                   {tilePhotos.length > 0 && (
                     <ul className="mt-2 space-y-1">
