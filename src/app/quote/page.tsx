@@ -12,6 +12,80 @@ const PHOTO_API =
   "https://quotes.johnsontileinstallation.com/api/quote/photos";
 const PHOTO_STAGE_API = PHOTO_API.replace(/\/photos$/, "/photos-stage");
 
+// ---------------------------------------------------------------------------
+// Client-side image compression (Canvas-based, zero dependencies).
+// Resizes large photos and re-encodes as JPEG to stay well under the Vercel
+// Hobby plan 4.5 MB serverless body limit. Target: ≤ 3 MB output.
+// ---------------------------------------------------------------------------
+const COMPRESS_MAX_DIMENSION = 2400; // px — longest edge after resize
+const COMPRESS_TARGET_BYTES = 3 * 1024 * 1024; // 3 MB
+const COMPRESS_INITIAL_QUALITY = 0.82;
+const COMPRESS_MIN_QUALITY = 0.5;
+
+function compressImage(file: File): Promise<File> {
+  // Skip non-image or already-tiny files
+  if (!file.type.startsWith("image/") && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
+    return Promise.resolve(file);
+  }
+  if (file.size <= COMPRESS_TARGET_BYTES) {
+    return Promise.resolve(file);
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // Calculate scaled dimensions (keep aspect ratio)
+      let { width, height } = img;
+      if (width > COMPRESS_MAX_DIMENSION || height > COMPRESS_MAX_DIMENSION) {
+        const ratio = Math.min(COMPRESS_MAX_DIMENSION / width, COMPRESS_MAX_DIMENSION / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Iteratively lower quality until under target size
+      let quality = COMPRESS_INITIAL_QUALITY;
+      const tryCompress = () => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return; }
+            if (blob.size <= COMPRESS_TARGET_BYTES || quality <= COMPRESS_MIN_QUALITY) {
+              const compressed = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+                type: "image/jpeg",
+                lastModified: file.lastModified,
+              });
+              console.log(
+                `[compressImage] ${file.name}: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB (q=${quality.toFixed(2)}, ${width}x${height})`
+              );
+              resolve(compressed);
+            } else {
+              quality -= 0.08;
+              tryCompress();
+            }
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      tryCompress();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file); // fallback to original if we can't decode it
+    };
+    img.src = url;
+  });
+}
+
 const PROJECT_TYPES = [
   "Bathroom Remodel",
   "Shower",
@@ -673,8 +747,10 @@ export default function QuotePage() {
   // photo metadata (URL + filename + category) which we keep in React state
   // instead of the raw File object — survives iOS Safari memory eviction.
   async function stagePhoto(file: File, category: "area" | "tile"): Promise<StagedPhoto | null> {
+    // Compress large images client-side to stay under Vercel's 4.5 MB body limit
+    const compressed = await compressImage(file);
     const form = new FormData();
-    form.append("photo", file);
+    form.append("photo", compressed);
     form.append("category", category);
     form.append("sessionId", photoSessionIdRef.current);
     try {
@@ -1086,7 +1162,7 @@ export default function QuotePage() {
                     <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p className="text-navy font-medium text-sm">{photoStaging.area ? "Uploading…" : "Tap to add area photos"}</p>
+                    <p className="text-navy font-medium text-sm">{photoStaging.area ? "Compressing & uploading…" : "Tap to add area photos"}</p>
                     <p className="text-gray-400 text-xs mt-1">Shower, floor, walls, kitchen, etc.</p>
                   </label>
                   <input id="area-photo-upload" type="file" accept="image/*" multiple className="hidden"
@@ -1118,7 +1194,7 @@ export default function QuotePage() {
                     <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                     </svg>
-                    <p className="text-navy font-medium text-sm">{photoStaging.tile ? "Uploading…" : "Tap to add tile photos"}</p>
+                    <p className="text-navy font-medium text-sm">{photoStaging.tile ? "Compressing & uploading…" : "Tap to add tile photos"}</p>
                     <p className="text-gray-400 text-xs mt-1">Box label, store listing, or the tile itself</p>
                   </label>
                   <input id="tile-photo-upload" type="file" accept="image/*" multiple className="hidden"
