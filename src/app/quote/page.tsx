@@ -207,10 +207,135 @@ type TileSize = {
   customDesc: string;
 };
 
+type AreaDimensions = {
+  // For floors (floor, bathroom_floor, shower_floor)
+  widthInches: number;   // 36-600", or custom >600 (use -1)
+  lengthInches: number;  // 36-600", or custom >600 (use -1)
+  customWidth: string;   // used when widthInches === -1 (">600")
+  customLength: string;  // used when lengthInches === -1 (">600")
+  // For walls (shower_walls, tub_surround_walls)
+  heightInches: number;  // 72-144"
+  walls: { widthInches: number; customWidth: string }[]; // per-wall widths, 6-240" or custom >240
+  slopedCeiling: boolean;
+  wallCount: number;     // default 3 for shower
+  // For backsplash
+  // uses heightInches + one wall width + outlets/switches
+  outlets: number;       // number of electrical outlets in tiled area
+  lightSwitches: number; // number of light switches in tiled area
+};
+
+const emptyDimensions: AreaDimensions = {
+  widthInches: 0, lengthInches: 0, customWidth: "", customLength: "",
+  heightInches: 0, walls: [{ widthInches: 0, customWidth: "" }],
+  slopedCeiling: false, wallCount: 3,
+  outlets: 0, lightSwitches: 0,
+};
+
+function makeDefaultDimensions(areaType: string): AreaDimensions {
+  if (areaType === "shower_walls") {
+    return {
+      ...emptyDimensions,
+      wallCount: 3,
+      walls: [
+        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "" },
+      ],
+    };
+  }
+  if (areaType === "tub_surround_walls") {
+    return {
+      ...emptyDimensions,
+      wallCount: 3,
+      walls: [
+        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "" },
+      ],
+    };
+  }
+  return { ...emptyDimensions, walls: [{ widthInches: 0, customWidth: "" }] };
+}
+
+// Dimension dropdown option ranges (generated programmatically)
+const FLOOR_INCH_OPTIONS = [...Array.from({ length: 600 - 36 + 1 }, (_, i) => i + 36), -1]; // 36-600 + ">600"
+const WALL_HEIGHT_OPTIONS = Array.from({ length: 144 - 72 + 1 }, (_, i) => i + 72); // 72-144
+const WALL_WIDTH_OPTIONS = [...Array.from({ length: 240 - 6 + 1 }, (_, i) => i + 6), -1]; // 6-240 + ">240"
+const BACKSPLASH_HEIGHT_OPTIONS = Array.from({ length: 144 - 6 + 1 }, (_, i) => i + 6); // 6-144
+const COUNT_OPTIONS_0_10 = Array.from({ length: 11 }, (_, i) => i); // 0-10
+
+function getEffectiveInches(value: number, customValue: string): number {
+  if (value === -1) return parseFloat(customValue) || 0;
+  return value;
+}
+
+function calcSqft(areaType: string, dimensions: AreaDimensions): number {
+  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
+  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
+  const isBacksplash = areaType === "backsplash";
+
+  if (isFloor) {
+    const w = getEffectiveInches(dimensions.widthInches, dimensions.customWidth);
+    const l = getEffectiveInches(dimensions.lengthInches, dimensions.customLength);
+    if (w > 0 && l > 0) return Math.round((w * l) / 144 * 100) / 100;
+    return 0;
+  }
+  if (isWall) {
+    const h = dimensions.heightInches;
+    const totalWidth = dimensions.walls.reduce((sum, wall) => sum + getEffectiveInches(wall.widthInches, wall.customWidth), 0);
+    if (h > 0 && totalWidth > 0) return Math.round((h * totalWidth) / 144 * 100) / 100;
+    return 0;
+  }
+  if (isBacksplash) {
+    const h = dimensions.heightInches;
+    const w = dimensions.walls.length > 0 ? getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth) : 0;
+    if (h > 0 && w > 0) return Math.round((h * w) / 144 * 100) / 100;
+    return 0;
+  }
+  return 0;
+}
+
+function areaReviewText(areaType: string, dimensions: AreaDimensions, displayName: string): string {
+  const sqft = calcSqft(areaType, dimensions);
+  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
+  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
+  const isBacksplash = areaType === "backsplash";
+
+  if (isFloor) {
+    const w = getEffectiveInches(dimensions.widthInches, dimensions.customWidth);
+    const l = getEffectiveInches(dimensions.lengthInches, dimensions.customLength);
+    if (w > 0 && l > 0) {
+      return `${displayName}: ${w}" x ${l}" (${sqft} sq ft)`;
+    }
+    return `${displayName}: dimensions not set`;
+  }
+  if (isWall) {
+    const h = dimensions.heightInches;
+    const wallWidths = dimensions.walls.map((wall) => getEffectiveInches(wall.widthInches, wall.customWidth)).filter((v) => v > 0);
+    if (h > 0 && wallWidths.length > 0) {
+      const wallStr = wallWidths.map((w) => `${w}"`).join(" + ");
+      return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr}) = ${sqft} sq ft`;
+    }
+    return `${displayName}: dimensions not set`;
+  }
+  if (isBacksplash) {
+    const h = dimensions.heightInches;
+    const w = dimensions.walls.length > 0 ? getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth) : 0;
+    if (h > 0 && w > 0) {
+      let text = `${displayName}: ${h}"H x ${w}"W (${sqft} sq ft)`;
+      if (dimensions.outlets > 0) text += `, ${dimensions.outlets} outlet${dimensions.outlets !== 1 ? "s" : ""}`;
+      if (dimensions.lightSwitches > 0) text += `, ${dimensions.lightSwitches} switch${dimensions.lightSwitches !== 1 ? "es" : ""}`;
+      return text;
+    }
+    return `${displayName}: dimensions not set`;
+  }
+  return `${displayName}: ${sqft > 0 ? sqft + " sq ft" : "dimensions not set"}`;
+}
+
 type AreaEntry = {
   id: string;
   areaType: string;
-  sqft: string;
+  dimensions: AreaDimensions;
   tileSize: TileSize;
 };
 
@@ -481,6 +606,384 @@ function AreaTypePicker({ value, onChange, options }: { value: string; onChange:
   );
 }
 
+// Generic dimension dropdown — same visual style as InchDropdown
+function DimensionDropdown({
+  value,
+  onChange,
+  label,
+  options,
+  overflowValue,
+  overflowLabel,
+  placeholder,
+  displayFn,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  label: string;
+  options: number[];
+  overflowValue?: number;  // e.g. -1 for ">600"
+  overflowLabel?: string;  // e.g. ">600"
+  placeholder?: string;
+  displayFn?: (v: number) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const displayValue = (() => {
+    if (value === 0) return "";
+    if (overflowValue !== undefined && value === overflowValue) return overflowLabel || `>${options[options.length - (options.includes(overflowValue) ? 2 : 1)]}`;
+    if (displayFn) return displayFn(value);
+    return `${value}"`;
+  })();
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full border rounded-lg px-3 py-3 text-base text-left flex items-center justify-between ${open ? "border-navy ring-2 ring-navy/20" : "border-gray-300"}`}
+      >
+        <span className={displayValue ? "text-gray-900" : "text-gray-400"}>
+          {displayValue || placeholder || "Select"}
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {options.map((n) => {
+            const isOverflow = overflowValue !== undefined && n === overflowValue;
+            const itemLabel = isOverflow ? (overflowLabel || `>${n}`) : (displayFn ? displayFn(n) : `${n}"`);
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => { onChange(n); setOpen(false); }}
+                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-navy/5 ${value === n ? "bg-navy/10 text-navy font-medium" : "text-gray-700"}`}
+              >
+                {itemLabel}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Floor dimension inputs (floor, bathroom_floor, shower_floor)
+function FloorDimensionInputs({
+  dimensions,
+  onChange,
+  areaType,
+  allAreas,
+}: {
+  dimensions: AreaDimensions;
+  onChange: (d: AreaDimensions) => void;
+  areaType: string;
+  allAreas: AreaEntry[];
+}) {
+  // Track whether the user has manually edited the shower floor dimensions
+  const [manuallyEdited, setManuallyEdited] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // Shower floor auto-fill from wall widths
+  useEffect(() => {
+    if (areaType !== "shower_floor" || manuallyEdited) return;
+    const wallArea = allAreas.find((a) => a.areaType === "shower_walls");
+    if (!wallArea) return;
+    const wallWidths = wallArea.dimensions.walls
+      .map((w) => getEffectiveInches(w.widthInches, w.customWidth))
+      .filter((v) => v > 0)
+      .sort((a, b) => a - b);
+    if (wallWidths.length < 2) return;
+    // Use the two longest wall widths
+    const sorted = [...wallWidths].sort((a, b) => b - a);
+    const newWidth = sorted[0];
+    const newLength = sorted[1];
+    // Only auto-fill if the values would actually change
+    const currentW = getEffectiveInches(dimensions.widthInches, dimensions.customWidth);
+    const currentL = getEffectiveInches(dimensions.lengthInches, dimensions.customLength);
+    if (currentW === newWidth && currentL === newLength) return;
+    // Determine if values are in range or need custom
+    const wInRange = newWidth >= 36 && newWidth <= 600;
+    const lInRange = newLength >= 36 && newLength <= 600;
+    onChange({
+      ...dimensions,
+      widthInches: wInRange ? newWidth : -1,
+      customWidth: wInRange ? "" : String(newWidth),
+      lengthInches: lInRange ? newLength : -1,
+      customLength: lInRange ? "" : String(newLength),
+    });
+    setAutoFilled(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaType, allAreas, manuallyEdited]);
+
+  const handleWidthChange = (v: number) => {
+    setManuallyEdited(true);
+    setAutoFilled(false);
+    onChange({ ...dimensions, widthInches: v, customWidth: v === -1 ? dimensions.customWidth : "" });
+  };
+  const handleLengthChange = (v: number) => {
+    setManuallyEdited(true);
+    setAutoFilled(false);
+    onChange({ ...dimensions, lengthInches: v, customLength: v === -1 ? dimensions.customLength : "" });
+  };
+
+  const sqft = calcSqft(areaType, dimensions);
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs text-gray-500 mb-1">Dimensions (inches)</label>
+      <div className="flex gap-3 items-end">
+        <DimensionDropdown
+          value={dimensions.widthInches}
+          onChange={handleWidthChange}
+          label="Width"
+          options={FLOOR_INCH_OPTIONS}
+          overflowValue={-1}
+          overflowLabel={'>600"'}
+          placeholder="Width"
+        />
+        <span className="pb-3 text-gray-400 font-bold">&times;</span>
+        <DimensionDropdown
+          value={dimensions.lengthInches}
+          onChange={handleLengthChange}
+          label="Length"
+          options={FLOOR_INCH_OPTIONS}
+          overflowValue={-1}
+          overflowLabel={'>600"'}
+          placeholder="Length"
+        />
+      </div>
+      {dimensions.widthInches === -1 && (
+        <input
+          type="text"
+          value={dimensions.customWidth}
+          onChange={(e) => { setManuallyEdited(true); setAutoFilled(false); onChange({ ...dimensions, customWidth: e.target.value }); }}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+          placeholder='Custom width (inches, e.g. 720)'
+        />
+      )}
+      {dimensions.lengthInches === -1 && (
+        <input
+          type="text"
+          value={dimensions.customLength}
+          onChange={(e) => { setManuallyEdited(true); setAutoFilled(false); onChange({ ...dimensions, customLength: e.target.value }); }}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+          placeholder='Custom length (inches, e.g. 720)'
+        />
+      )}
+      {areaType === "shower_floor" && autoFilled && (
+        <p className="text-xs text-gray-500 italic">(auto-filled from shower wall dimensions)</p>
+      )}
+      {areaType === "shower_floor" && autoFilled && (
+        <p className="text-xs text-gray-400">Auto-filled from shower wall dimensions. Edit if your shower floor is not rectangular.</p>
+      )}
+      {sqft > 0 && (
+        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      )}
+    </div>
+  );
+}
+
+// Wall dimension inputs (shower_walls, tub_surround_walls)
+function WallDimensionInputs({
+  dimensions,
+  onChange,
+  areaType,
+}: {
+  dimensions: AreaDimensions;
+  onChange: (d: AreaDimensions) => void;
+  areaType: string;
+}) {
+  const addWall = () => {
+    onChange({
+      ...dimensions,
+      walls: [...dimensions.walls, { widthInches: 0, customWidth: "" }],
+      wallCount: dimensions.walls.length + 1,
+    });
+  };
+
+  const removeWall = (idx: number) => {
+    if (dimensions.walls.length <= 1) return;
+    const newWalls = dimensions.walls.filter((_, i) => i !== idx);
+    onChange({ ...dimensions, walls: newWalls, wallCount: newWalls.length });
+  };
+
+  const updateWall = (idx: number, widthInches: number, customWidth?: string) => {
+    const newWalls = dimensions.walls.map((w, i) =>
+      i === idx ? { widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? w.customWidth : "") } : w
+    );
+    onChange({ ...dimensions, walls: newWalls });
+  };
+
+  const sqft = calcSqft(areaType, dimensions);
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs text-gray-500 mb-1">Dimensions (inches)</label>
+      <DimensionDropdown
+        value={dimensions.heightInches}
+        onChange={(v) => onChange({ ...dimensions, heightInches: v })}
+        label="Height"
+        options={WALL_HEIGHT_OPTIONS}
+        placeholder="Height"
+      />
+      <p className="text-xs text-gray-400">If your ceiling is sloped, measure to the highest point</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id={`sloped-${areaType}`}
+          checked={dimensions.slopedCeiling}
+          onChange={(e) => onChange({ ...dimensions, slopedCeiling: e.target.checked })}
+          className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+        />
+        <label htmlFor={`sloped-${areaType}`} className="text-sm text-gray-600">Sloped ceiling</label>
+      </div>
+      <div className="space-y-2 pt-1">
+        {dimensions.walls.map((wall, idx) => (
+          <div key={idx} className="space-y-1">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <DimensionDropdown
+                  value={wall.widthInches}
+                  onChange={(v) => updateWall(idx, v)}
+                  label={`Wall ${idx + 1} width`}
+                  options={WALL_WIDTH_OPTIONS}
+                  overflowValue={-1}
+                  overflowLabel={'>240"'}
+                  placeholder="Width"
+                />
+              </div>
+              {dimensions.walls.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeWall(idx)}
+                  className="mb-0.5 text-gray-400 hover:text-red-500 transition-colors p-1"
+                  title="Remove wall"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {wall.widthInches === -1 && (
+              <input
+                type="text"
+                value={wall.customWidth}
+                onChange={(e) => updateWall(idx, -1, e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                placeholder="Custom width (inches)"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addWall}
+        className="text-sm text-navy font-medium hover:underline"
+      >
+        + Add Wall
+      </button>
+      {sqft > 0 && (
+        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      )}
+    </div>
+  );
+}
+
+// Backsplash dimension inputs
+function BacksplashDimensionInputs({
+  dimensions,
+  onChange,
+}: {
+  dimensions: AreaDimensions;
+  onChange: (d: AreaDimensions) => void;
+}) {
+  const wall = dimensions.walls[0] || { widthInches: 0, customWidth: "" };
+
+  const updateWall = (widthInches: number, customWidth?: string) => {
+    const newWall = { widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? wall.customWidth : "") };
+    onChange({ ...dimensions, walls: [newWall, ...dimensions.walls.slice(1)] });
+  };
+
+  const sqft = calcSqft("backsplash", dimensions);
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs text-gray-500 mb-1">Dimensions (inches)</label>
+      <DimensionDropdown
+        value={dimensions.heightInches}
+        onChange={(v) => onChange({ ...dimensions, heightInches: v })}
+        label="Height"
+        options={BACKSPLASH_HEIGHT_OPTIONS}
+        placeholder="Height"
+      />
+      <p className="text-xs text-gray-400">If your ceiling is sloped, measure to the highest point</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="sloped-backsplash"
+          checked={dimensions.slopedCeiling}
+          onChange={(e) => onChange({ ...dimensions, slopedCeiling: e.target.checked })}
+          className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+        />
+        <label htmlFor="sloped-backsplash" className="text-sm text-gray-600">Sloped ceiling</label>
+      </div>
+      <DimensionDropdown
+        value={wall.widthInches}
+        onChange={(v) => updateWall(v)}
+        label="Width"
+        options={WALL_WIDTH_OPTIONS}
+        overflowValue={-1}
+        overflowLabel={'>240"'}
+        placeholder="Width"
+      />
+      {wall.widthInches === -1 && (
+        <input
+          type="text"
+          value={wall.customWidth}
+          onChange={(e) => updateWall(-1, e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+          placeholder="Custom width (inches)"
+        />
+      )}
+      <DimensionDropdown
+        value={dimensions.outlets}
+        onChange={(v) => onChange({ ...dimensions, outlets: v })}
+        label="Electrical outlets in tiled area"
+        options={COUNT_OPTIONS_0_10}
+        placeholder="0"
+        displayFn={(v) => String(v)}
+      />
+      <DimensionDropdown
+        value={dimensions.lightSwitches}
+        onChange={(v) => onChange({ ...dimensions, lightSwitches: v })}
+        label="Light switches in tiled area"
+        options={COUNT_OPTIONS_0_10}
+        placeholder="0"
+        displayFn={(v) => String(v)}
+      />
+      {sqft > 0 && (
+        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      )}
+    </div>
+  );
+}
+
 // Single area card component
 function AreaCard({
   area,
@@ -489,6 +992,7 @@ function AreaCard({
   onUpdate,
   onRemove,
   canRemove,
+  allAreas,
 }: {
   area: AreaEntry;
   index: number;
@@ -496,8 +1000,12 @@ function AreaCard({
   onUpdate: (updated: AreaEntry) => void;
   onRemove: () => void;
   canRemove: boolean;
+  allAreas: AreaEntry[];
 }) {
   const areaLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label || area.areaType;
+  const isFloorArea = area.areaType === "floor" || area.areaType === "bathroom_floor" || area.areaType === "shower_floor";
+  const isWallArea = area.areaType === "shower_walls" || area.areaType === "tub_surround_walls";
+  const isBacksplash = area.areaType === "backsplash";
 
   return (
     <div className="bg-gray-50 rounded-xl p-4 space-y-3 relative">
@@ -521,21 +1029,32 @@ function AreaCard({
       {/* Area type */}
       <AreaTypePicker
         value={area.areaType}
-        onChange={(v) => onUpdate({ ...area, areaType: v })}
+        onChange={(v) => onUpdate({ ...area, areaType: v, dimensions: makeDefaultDimensions(v) })}
         options={areaTypeOptions}
       />
 
-      {/* Square footage */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Square footage</label>
-        <input
-          type="text"
-          value={area.sqft}
-          onChange={(e) => onUpdate({ ...area, sqft: e.target.value })}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-          placeholder="Best guess is fine"
+      {/* Dimension inputs based on area type */}
+      {isFloorArea && (
+        <FloorDimensionInputs
+          dimensions={area.dimensions}
+          onChange={(d) => onUpdate({ ...area, dimensions: d })}
+          areaType={area.areaType}
+          allAreas={allAreas}
         />
-      </div>
+      )}
+      {isWallArea && (
+        <WallDimensionInputs
+          dimensions={area.dimensions}
+          onChange={(d) => onUpdate({ ...area, dimensions: d })}
+          areaType={area.areaType}
+        />
+      )}
+      {isBacksplash && (
+        <BacksplashDimensionInputs
+          dimensions={area.dimensions}
+          onChange={(d) => onUpdate({ ...area, dimensions: d })}
+        />
+      )}
 
       {/* Tile size picker */}
       <TileSizePicker
@@ -605,7 +1124,7 @@ export default function QuotePage() {
       areaKeys.map((key) => ({
         id: makeAreaId(),
         areaType: key,
-        sqft: "",
+        dimensions: makeDefaultDimensions(key),
         tileSize: { ...emptyTileSize },
       }))
     );
@@ -722,7 +1241,7 @@ export default function QuotePage() {
       {
         id: makeAreaId(),
         areaType: defaultType,
-        sqft: "",
+        dimensions: makeDefaultDimensions(defaultType),
         tileSize: { ...emptyTileSize },
       },
     ]);
@@ -826,7 +1345,7 @@ export default function QuotePage() {
       // Combine saved projects + the live current project (if it has content)
       // Editing case: current project is a copy of savedProjects[editingIndex] — replace, don't append
       const allProjects: SavedProject[] = (() => {
-        const liveHasContent = projectType && (areas.some((a) => a.sqft) || categoryLabel.trim());
+        const liveHasContent = projectType && (areas.some((a) => calcSqft(a.areaType, a.dimensions) > 0) || categoryLabel.trim());
         if (!liveHasContent) return savedProjects;
         const liveSnap = snapshotCurrentProject();
         if (editingIndex !== null) {
@@ -844,10 +1363,11 @@ export default function QuotePage() {
       const projectsPayload = allProjects.map((proj) => {
         const builtAreas = proj.areas
           .map((area) => {
-            if (!area.sqft) return null;
+            const sqft = calcSqft(area.areaType, area.dimensions);
+            if (sqft <= 0) return null;
             return {
               areaType: area.areaType,
-              sqft: parseFloat(area.sqft) || 0,
+              sqft,
               tileShape: area.tileSize.shape,
               tileDim1: area.tileSize.dim1,
               tileDim2: area.tileSize.dim2,
@@ -1085,6 +1605,7 @@ export default function QuotePage() {
                 onUpdate={(updated) => updateArea(area.id, updated)}
                 onRemove={() => removeArea(area.id)}
                 canRemove={areas.length > 1}
+                allAreas={areas}
               />
             ))}
 
@@ -1306,9 +1827,9 @@ export default function QuotePage() {
                       {proj.projectType}
                       {proj.categoryLabel ? ` — ${proj.categoryLabel}` : ""}
                     </p>
-                    {proj.areas.filter((a) => a.sqft).map((area) => (
+                    {proj.areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
                       <p key={area.id} className="text-gray-600 text-sm">
-                        {projAreaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
+                        {areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area))} — {tileDisplayLabel(area.tileSize) || "not specified"}
                       </p>
                     ))}
                     {proj.features.length > 0 && (
@@ -1338,9 +1859,9 @@ export default function QuotePage() {
                     {categoryLabel || projectType}
                   </h3>
                   <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
-                  {areas.filter((a) => a.sqft).map((area) => (
+                  {areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
                     <p key={area.id} className="text-gray-600 text-sm">
-                      {areaDisplayName(area)}: {area.sqft} sq ft — {tileDisplayLabel(area.tileSize) || "not specified"}
+                      {areaReviewText(area.areaType, area.dimensions, areaDisplayName(area))} — {tileDisplayLabel(area.tileSize) || "not specified"}
                     </p>
                   ))}
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
