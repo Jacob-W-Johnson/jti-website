@@ -215,7 +215,7 @@ type AreaDimensions = {
   customLength: string;  // used when lengthInches === -1 (">600")
   // For walls (shower_walls, tub_surround_walls)
   heightInches: number;  // 72-144"
-  walls: { widthInches: number; customWidth: string }[]; // per-wall widths, 6-240" or custom >240
+  walls: { widthInches: number; customWidth: string; label: string }[]; // per-wall widths, 6-240" or custom >240
   slopedCeiling: boolean;
   wallCount: number;     // default 3 for shower
   // For backsplash
@@ -226,7 +226,7 @@ type AreaDimensions = {
 
 const emptyDimensions: AreaDimensions = {
   widthInches: 0, lengthInches: 0, customWidth: "", customLength: "",
-  heightInches: 0, walls: [{ widthInches: 0, customWidth: "" }],
+  heightInches: 0, walls: [{ widthInches: 0, customWidth: "", label: "" }],
   slopedCeiling: false, wallCount: 3,
   outlets: 0, lightSwitches: 0,
 };
@@ -237,9 +237,9 @@ function makeDefaultDimensions(areaType: string): AreaDimensions {
       ...emptyDimensions,
       wallCount: 3,
       walls: [
-        { widthInches: 0, customWidth: "" },
-        { widthInches: 0, customWidth: "" },
-        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "", label: "Center Wall" },
+        { widthInches: 0, customWidth: "", label: "Left Wall" },
+        { widthInches: 0, customWidth: "", label: "Right Wall" },
       ],
     };
   }
@@ -248,13 +248,13 @@ function makeDefaultDimensions(areaType: string): AreaDimensions {
       ...emptyDimensions,
       wallCount: 3,
       walls: [
-        { widthInches: 0, customWidth: "" },
-        { widthInches: 0, customWidth: "" },
-        { widthInches: 0, customWidth: "" },
+        { widthInches: 0, customWidth: "", label: "Back Wall" },
+        { widthInches: 0, customWidth: "", label: "Left Wall" },
+        { widthInches: 0, customWidth: "", label: "Right Wall" },
       ],
     };
   }
-  return { ...emptyDimensions, walls: [{ widthInches: 0, customWidth: "" }] };
+  return { ...emptyDimensions, walls: [{ widthInches: 0, customWidth: "", label: "" }] };
 }
 
 // Dimension dropdown option ranges (generated programmatically)
@@ -330,7 +330,13 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
     const h = dimensions.heightInches;
     const wallWidths = dimensions.walls.map((wall) => getEffectiveInches(wall.widthInches, wall.customWidth)).filter((v) => v > 0);
     if (h > 0 && wallWidths.length > 0) {
-      const wallStr = wallWidths.map((w) => `${w}"`).join(" + ");
+      const wallStr = dimensions.walls
+        .filter((wall) => getEffectiveInches(wall.widthInches, wall.customWidth) > 0)
+        .map((wall) => {
+          const w = getEffectiveInches(wall.widthInches, wall.customWidth);
+          return wall.label ? `${wall.label}: ${w}"` : `${w}"`;
+        })
+        .join(", ");
       return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr}) = ${sqft} sq ft${layoutSuffix}`;
     }
     return `${displayName}: dimensions not set`;
@@ -825,12 +831,27 @@ function WallDimensionInputs({
   onChange: (d: AreaDimensions) => void;
   areaType: string;
 }) {
+  const [newWallName, setNewWallName] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
+
   const addWall = () => {
-    onChange({
-      ...dimensions,
-      walls: [...dimensions.walls, { widthInches: 0, customWidth: "" }],
-      wallCount: dimensions.walls.length + 1,
-    });
+    if (showNameInput) {
+      const label = newWallName.trim() || `Wall ${dimensions.walls.length + 1}`;
+      onChange({
+        ...dimensions,
+        walls: [...dimensions.walls, { widthInches: 0, customWidth: "", label }],
+        wallCount: dimensions.walls.length + 1,
+      });
+      setNewWallName("");
+      setShowNameInput(false);
+    } else {
+      setShowNameInput(true);
+    }
+  };
+
+  const cancelAddWall = () => {
+    setNewWallName("");
+    setShowNameInput(false);
   };
 
   const removeWall = (idx: number) => {
@@ -841,7 +862,7 @@ function WallDimensionInputs({
 
   const updateWall = (idx: number, widthInches: number, customWidth?: string) => {
     const newWalls = dimensions.walls.map((w, i) =>
-      i === idx ? { widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? w.customWidth : "") } : w
+      i === idx ? { ...w, widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? w.customWidth : "") } : w
     );
     onChange({ ...dimensions, walls: newWalls });
   };
@@ -877,7 +898,7 @@ function WallDimensionInputs({
                 <DimensionDropdown
                   value={wall.widthInches}
                   onChange={(v) => updateWall(idx, v)}
-                  label={`Wall ${idx + 1} width`}
+                  label={`${wall.label || `Wall ${idx + 1}`} width`}
                   options={WALL_WIDTH_OPTIONS}
                   overflowValue={-1}
                   overflowLabel={'>240"'}
@@ -909,13 +930,29 @@ function WallDimensionInputs({
           </div>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={addWall}
-        className="text-sm text-navy font-medium hover:underline"
-      >
-        + Add Wall
-      </button>
+      {showNameInput ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newWallName}
+            onChange={(e) => setNewWallName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addWall(); } }}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+            placeholder="Wall name (e.g. Knee Wall)"
+            autoFocus
+          />
+          <button type="button" onClick={addWall} className="text-sm text-navy font-medium hover:underline">Add</button>
+          <button type="button" onClick={cancelAddWall} className="text-sm text-gray-400 font-medium hover:underline">Cancel</button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={addWall}
+          className="text-sm text-navy font-medium hover:underline"
+        >
+          + Add Wall
+        </button>
+      )}
       {sqft > 0 && (
         <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
       )}
@@ -931,10 +968,10 @@ function BacksplashDimensionInputs({
   dimensions: AreaDimensions;
   onChange: (d: AreaDimensions) => void;
 }) {
-  const wall = dimensions.walls[0] || { widthInches: 0, customWidth: "" };
+  const wall = dimensions.walls[0] || { widthInches: 0, customWidth: "", label: "" };
 
   const updateWall = (widthInches: number, customWidth?: string) => {
-    const newWall = { widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? wall.customWidth : "") };
+    const newWall = { ...wall, widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? wall.customWidth : "") };
     onChange({ ...dimensions, walls: [newWall, ...dimensions.walls.slice(1)] });
   };
 
