@@ -503,7 +503,7 @@ function AreaCard({
     <div className="bg-gray-50 rounded-xl p-4 space-y-3 relative">
       {/* Header row with area number and remove button */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-navy">Area {index + 1}</p>
+        <p className="text-sm font-semibold text-navy">{areaLabel}</p>
         {canRemove && (
           <button
             type="button"
@@ -1283,7 +1283,7 @@ export default function QuotePage() {
                   <div key={savedProj.id} className="bg-gray-50 rounded-xl p-5 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                        Project {index + 1}{isBeingEdited ? " (editing)" : ""}
+                        {proj.categoryLabel || proj.projectType}
                       </h3>
                       <div className="flex gap-2 text-xs">
                         {!isBeingEdited && (
@@ -1335,7 +1335,7 @@ export default function QuotePage() {
               {projectType && editingIndex === null && (
                 <div className="bg-gray-50 rounded-xl p-5 space-y-2">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                    Project {savedProjects.length + 1}
+                    {categoryLabel || projectType}
                   </h3>
                   <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
                   {areas.filter((a) => a.sqft).map((area) => (
