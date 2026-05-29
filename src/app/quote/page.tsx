@@ -307,7 +307,12 @@ function calcSqft(areaType: string, dimensions: AreaDimensions): number {
 
 function areaReviewText(areaType: string, dimensions: AreaDimensions, displayName: string, layout?: string): string {
   const sqft = calcSqft(areaType, dimensions);
-  const layoutLabel = layout ? TILE_LAYOUTS.find((l) => l.key === layout)?.label : "";
+  const layoutLabel = layout
+    ? (TILE_LAYOUTS.find((l) => l.key === layout)?.label
+      || (layout === "hex_point_up" ? "Point Facing Up" : null)
+      || (layout === "hex_flat_top" ? "Flat Side Up" : null)
+      || layout)
+    : "";
   const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
   const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
   const isBacksplash = areaType === "backsplash";
@@ -1072,23 +1077,38 @@ function AreaCard({
       {/* Tile size picker */}
       <TileSizePicker
         size={area.tileSize}
-        onChange={(ts) => onUpdate({ ...area, tileSize: ts })}
+        onChange={(ts) => {
+          // Clear layout if tile shape changed (hex layouts don't apply to non-hex, etc.)
+          const shapeChanged = ts.shape !== area.tileSize.shape;
+          onUpdate({ ...area, tileSize: ts, layout: shapeChanged ? "" : area.layout });
+        }}
       />
 
-      {/* Layout pattern */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Layout pattern</label>
-        <select
-          value={area.layout}
-          onChange={(e) => onUpdate({ ...area, layout: e.target.value })}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
-        >
-          <option value="">Select layout...</option>
-          {TILE_LAYOUTS.map((l) => (
-            <option key={l.key} value={l.key}>{l.label}</option>
-          ))}
-        </select>
-      </div>
+      {/* Layout pattern — hidden for mosaic/penny round, hex-specific options for hexagon */}
+      {area.tileSize.shape && area.tileSize.shape !== "mosaic" && area.tileSize.shape !== "penny_round" && (() => {
+        const isHex = area.tileSize.shape === "hexagon";
+        const layoutOptions = isHex
+          ? [
+              { key: "hex_point_up", label: "Point Facing Up" },
+              { key: "hex_flat_top", label: "Flat Side Up" },
+            ]
+          : TILE_LAYOUTS;
+        return (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Layout pattern</label>
+            <select
+              value={area.layout}
+              onChange={(e) => onUpdate({ ...area, layout: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+            >
+              <option value="">Select layout...</option>
+              {layoutOptions.map((l) => (
+                <option key={l.key} value={l.key}>{l.label}</option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1405,7 +1425,7 @@ export default function QuotePage() {
               tileSqft: tileSqft(area.tileSize),
               tileDescription: tileDisplayLabel(area.tileSize),
               layout: area.layout || undefined,
-              layoutLabel: area.layout ? TILE_LAYOUTS.find((l) => l.key === area.layout)?.label : undefined,
+              layoutLabel: area.layout ? (TILE_LAYOUTS.find((l) => l.key === area.layout)?.label || (area.layout === "hex_point_up" ? "Point Facing Up" : area.layout === "hex_flat_top" ? "Flat Side Up" : area.layout)) : undefined,
               dimensions: area.dimensions,
             };
           })
