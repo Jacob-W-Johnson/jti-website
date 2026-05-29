@@ -264,6 +264,16 @@ const WALL_WIDTH_OPTIONS = [...Array.from({ length: 240 - 6 + 1 }, (_, i) => i +
 const BACKSPLASH_HEIGHT_OPTIONS = Array.from({ length: 144 - 6 + 1 }, (_, i) => i + 6); // 6-144
 const COUNT_OPTIONS_0_10 = Array.from({ length: 11 }, (_, i) => i); // 0-10
 
+// Tile layout patterns
+const TILE_LAYOUTS = [
+  { key: "straight", label: "Straight Lay (Grid)" },
+  { key: "half_offset", label: "1/2 Offset (Brick Lay)" },
+  { key: "third_offset", label: "1/3 Offset" },
+  { key: "herringbone", label: "Herringbone" },
+  { key: "soldier", label: "Soldier Lay" },
+  { key: "other", label: "Other / Custom" },
+] as const;
+
 function getEffectiveInches(value: number, customValue: string): number {
   if (value === -1) return parseFloat(customValue) || 0;
   return value;
@@ -295,17 +305,19 @@ function calcSqft(areaType: string, dimensions: AreaDimensions): number {
   return 0;
 }
 
-function areaReviewText(areaType: string, dimensions: AreaDimensions, displayName: string): string {
+function areaReviewText(areaType: string, dimensions: AreaDimensions, displayName: string, layout?: string): string {
   const sqft = calcSqft(areaType, dimensions);
+  const layoutLabel = layout ? TILE_LAYOUTS.find((l) => l.key === layout)?.label : "";
   const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
   const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
   const isBacksplash = areaType === "backsplash";
+  const layoutSuffix = layoutLabel ? ` — ${layoutLabel}` : "";
 
   if (isFloor) {
     const w = getEffectiveInches(dimensions.widthInches, dimensions.customWidth);
     const l = getEffectiveInches(dimensions.lengthInches, dimensions.customLength);
     if (w > 0 && l > 0) {
-      return `${displayName}: ${w}" x ${l}" (${sqft} sq ft)`;
+      return `${displayName}: ${w}" x ${l}" (${sqft} sq ft)${layoutSuffix}`;
     }
     return `${displayName}: dimensions not set`;
   }
@@ -314,7 +326,7 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
     const wallWidths = dimensions.walls.map((wall) => getEffectiveInches(wall.widthInches, wall.customWidth)).filter((v) => v > 0);
     if (h > 0 && wallWidths.length > 0) {
       const wallStr = wallWidths.map((w) => `${w}"`).join(" + ");
-      return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr}) = ${sqft} sq ft`;
+      return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr}) = ${sqft} sq ft${layoutSuffix}`;
     }
     return `${displayName}: dimensions not set`;
   }
@@ -322,7 +334,7 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
     const h = dimensions.heightInches;
     const w = dimensions.walls.length > 0 ? getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth) : 0;
     if (h > 0 && w > 0) {
-      let text = `${displayName}: ${h}"H x ${w}"W (${sqft} sq ft)`;
+      let text = `${displayName}: ${h}"H x ${w}"W (${sqft} sq ft)${layoutSuffix}`;
       if (dimensions.outlets > 0) text += `, ${dimensions.outlets} outlet${dimensions.outlets !== 1 ? "s" : ""}`;
       if (dimensions.lightSwitches > 0) text += `, ${dimensions.lightSwitches} switch${dimensions.lightSwitches !== 1 ? "es" : ""}`;
       return text;
@@ -337,6 +349,7 @@ type AreaEntry = {
   areaType: string;
   dimensions: AreaDimensions;
   tileSize: TileSize;
+  layout: string;
 };
 
 // A staged photo — uploaded to blob immediately when the customer picks it.
@@ -1061,6 +1074,21 @@ function AreaCard({
         size={area.tileSize}
         onChange={(ts) => onUpdate({ ...area, tileSize: ts })}
       />
+
+      {/* Layout pattern */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Layout pattern</label>
+        <select
+          value={area.layout}
+          onChange={(e) => onUpdate({ ...area, layout: e.target.value })}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+        >
+          <option value="">Select layout...</option>
+          {TILE_LAYOUTS.map((l) => (
+            <option key={l.key} value={l.key}>{l.label}</option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
@@ -1126,6 +1154,7 @@ export default function QuotePage() {
         areaType: key,
         dimensions: makeDefaultDimensions(key),
         tileSize: { ...emptyTileSize },
+        layout: "",
       }))
     );
   }
@@ -1243,6 +1272,7 @@ export default function QuotePage() {
         areaType: defaultType,
         dimensions: makeDefaultDimensions(defaultType),
         tileSize: { ...emptyTileSize },
+        layout: "",
       },
     ]);
   }
@@ -1374,6 +1404,9 @@ export default function QuotePage() {
               tileHexSize: area.tileSize.hexSize,
               tileSqft: tileSqft(area.tileSize),
               tileDescription: tileDisplayLabel(area.tileSize),
+              layout: area.layout || undefined,
+              layoutLabel: area.layout ? TILE_LAYOUTS.find((l) => l.key === area.layout)?.label : undefined,
+              dimensions: area.dimensions,
             };
           })
           .filter(Boolean);
@@ -1829,7 +1862,7 @@ export default function QuotePage() {
                     </p>
                     {proj.areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
                       <p key={area.id} className="text-gray-600 text-sm">
-                        {areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area))} — {tileDisplayLabel(area.tileSize) || "not specified"}
+                        {areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}
                       </p>
                     ))}
                     {proj.features.length > 0 && (
@@ -1861,7 +1894,7 @@ export default function QuotePage() {
                   <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
                   {areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
                     <p key={area.id} className="text-gray-600 text-sm">
-                      {areaReviewText(area.areaType, area.dimensions, areaDisplayName(area))} — {tileDisplayLabel(area.tileSize) || "not specified"}
+                      {areaReviewText(area.areaType, area.dimensions, areaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}
                     </p>
                   ))}
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
