@@ -968,18 +968,50 @@ function FloorDimensionInputs({
   );
 }
 
-// Wall dimension inputs (shower_walls, tub_surround_walls)
+// Wall dimension inputs (shower_walls, tub_surround_walls, bathroom_walls)
 function WallDimensionInputs({
   dimensions,
   onChange,
   areaType,
+  allAreas,
 }: {
   dimensions: AreaDimensions;
   onChange: (d: AreaDimensions) => void;
   areaType: string;
+  allAreas: AreaEntry[];
 }) {
   const [newWallName, setNewWallName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
+  const [manuallyEdited, setManuallyEdited] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // Shower walls auto-fill from shower floor dimensions
+  useEffect(() => {
+    if (areaType !== "shower_walls" || manuallyEdited) return;
+    const floorArea = allAreas.find((a) => a.areaType === "shower_floor");
+    if (!floorArea) return;
+    const floorW = getEffectiveInches(floorArea.dimensions.widthInches, floorArea.dimensions.customWidth);
+    const floorL = getEffectiveInches(floorArea.dimensions.lengthInches, floorArea.dimensions.customLength);
+    if (floorW <= 0 || floorL <= 0) return;
+    // Wider dimension = center wall, narrower = left & right walls
+    const wider = Math.max(floorW, floorL);
+    const narrower = Math.min(floorW, floorL);
+    // Only auto-fill the default 3 walls (Center, Left, Right)
+    if (dimensions.walls.length < 3) return;
+    const currentCenter = getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth);
+    const currentLeft = getEffectiveInches(dimensions.walls[1].widthInches, dimensions.walls[1].customWidth);
+    const currentRight = getEffectiveInches(dimensions.walls[2].widthInches, dimensions.walls[2].customWidth);
+    if (currentCenter === wider && currentLeft === narrower && currentRight === narrower) return;
+    const inRange = (v: number) => v >= 6 && v <= 240;
+    const newWalls = dimensions.walls.map((w, i) => {
+      if (i === 0) return { ...w, widthInches: inRange(wider) ? wider : -1, customWidth: inRange(wider) ? "" : String(wider) };
+      if (i === 1 || i === 2) return { ...w, widthInches: inRange(narrower) ? narrower : -1, customWidth: inRange(narrower) ? "" : String(narrower) };
+      return w;
+    });
+    onChange({ ...dimensions, walls: newWalls });
+    setAutoFilled(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaType, allAreas, manuallyEdited]);
 
   const addWall = () => {
     if (showNameInput) {
@@ -1008,6 +1040,8 @@ function WallDimensionInputs({
   };
 
   const updateWall = (idx: number, widthInches: number, customWidth?: string) => {
+    setManuallyEdited(true);
+    setAutoFilled(false);
     const newWalls = dimensions.walls.map((w, i) =>
       i === idx ? { ...w, widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? w.customWidth : "") } : w
     );
@@ -1021,7 +1055,7 @@ function WallDimensionInputs({
       <label className="block text-xs text-gray-500 mb-1">Dimensions (inches)</label>
       <DimensionDropdown
         value={dimensions.heightInches}
-        onChange={(v) => onChange({ ...dimensions, heightInches: v })}
+        onChange={(v) => { setManuallyEdited(true); setAutoFilled(false); onChange({ ...dimensions, heightInches: v }); }}
         label="Height"
         options={WALL_HEIGHT_OPTIONS}
         placeholder="Height"
@@ -1102,6 +1136,9 @@ function WallDimensionInputs({
       )}
       {sqft > 0 && (
         <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      )}
+      {areaType === "shower_walls" && autoFilled && (
+        <p className="text-xs text-gray-400">Auto-filled from shower floor dimensions. Edit any wall width to override.</p>
       )}
     </div>
   );
@@ -1290,6 +1327,7 @@ function AreaCard({
           dimensions={area.dimensions}
           onChange={(d) => onUpdate({ ...area, dimensions: d })}
           areaType={area.areaType}
+          allAreas={allAreas}
         />
       )}
       {isBacksplash && (
