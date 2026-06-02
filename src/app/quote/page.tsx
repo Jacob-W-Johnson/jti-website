@@ -103,6 +103,7 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
     "Corner Bench",
     "Floating Corner Bench",
     "Corner Shelf",
+    "Toe Shelf",
     "Custom Curb",
     "Curbless Entry",
   ],
@@ -111,12 +112,14 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
     "Corner Bench",
     "Floating Corner Bench",
     "Corner Shelf",
+    "Toe Shelf",
     "Custom Curb",
     "Curbless Entry",
   ],
   "Tub Surround": [
     "Niche (built-in shelf)",
     "Corner Shelf",
+    "Toe Shelf",
   ],
   "Floor Tile": [],
   "Backsplash Tile": [],
@@ -126,10 +129,56 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
     "Corner Bench",
     "Floating Corner Bench",
     "Corner Shelf",
+    "Toe Shelf",
     "Custom Curb",
     "Curbless Entry",
   ],
 };
+
+// Schluter prefab niche sizes (from 2026 catalog page 190)
+const NICHE_SIZES = [
+  { key: "6x12", label: '6" x 12" (Schluter KERDI-BOARD-SN)' },
+  { key: "12x12", label: '12" x 12" (Schluter KERDI-BOARD-SN)' },
+  { key: "20x12", label: '20" x 12" (Schluter KERDI-BOARD-SN)' },
+  { key: "28x12", label: '28" x 12" (Schluter KERDI-BOARD-SN)' },
+  { key: "custom", label: "Custom size (tile-built)" },
+] as const;
+
+// Sub-options for features that need them
+const SHELF_TYPES = [
+  { key: "tiled", label: "Tiled shelf" },
+  { key: "schluter", label: "Schluter shelf" },
+] as const;
+
+// Profile types for edge trim selection
+const PROFILE_TYPES = [
+  { key: "jolly", label: "Jolly" },
+  { key: "rondec", label: "Rondec" },
+  { key: "quadec", label: "Quadec" },
+] as const;
+
+const PROFILE_FINISHES = [
+  { key: "EB", label: "Brushed Stainless Steel" },
+  { key: "MC", label: "Chrome-Plated Brass" },
+  { key: "AE", label: "Satin Anodized Aluminum" },
+  { key: "ACG", label: "Polished Chrome Anod. Aluminum" },
+  { key: "ACGB", label: "Brushed Chrome Anod. Aluminum" },
+  { key: "AT", label: "Satin Nickel Anod. Aluminum" },
+  { key: "ATG", label: "Polished Nickel Anod. Aluminum" },
+  { key: "ATGB", label: "Brushed Nickel Anod. Aluminum" },
+  { key: "AK", label: "Satin Copper Anod. Aluminum" },
+  { key: "AKG", label: "Polished Copper Anod. Aluminum" },
+  { key: "AKGB", label: "Brushed Copper Anod. Aluminum" },
+  { key: "AM", label: "Satin Brass Anod. Aluminum" },
+  { key: "AMG", label: "Polished Brass Anod. Aluminum" },
+  { key: "AMGB", label: "Brushed Brass Anod. Aluminum" },
+  { key: "ABGB", label: "Brushed Antique Bronze Anod. Aluminum" },
+  { key: "AGSG", label: "Bright Black Anod. Aluminum" },
+  { key: "AGRB", label: "Brushed Graphite Anod. Aluminum" },
+  { key: "AGSB", label: "Brushed Black Anod. Aluminum" },
+  { key: "BW", label: "Bright White PVC" },
+  { key: "TS", label: "Trendline Textured Color-Coated" },
+] as const;
 
 // Area types available per project type
 const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = {
@@ -293,6 +342,7 @@ const TILE_LAYOUTS = [
 
 // Grout joint width options
 const GROUT_WIDTHS = [
+  { key: "none", label: "None" },
   { key: "1/16", label: '1/16"' },
   { key: "1/8", label: '1/8"' },
   { key: "3/16", label: '3/16"' },
@@ -518,6 +568,11 @@ type SavedProject = {
   areas: AreaEntry[];
   features: string[];
   customFeature: string;          // free-text "other feature" input
+  nicheSize: string;              // niche size key from NICHE_SIZES
+  cornerShelfType: string;        // "tiled" or "schluter"
+  toeShelfType: string;           // "tiled" or "schluter"
+  profileType: string;            // "jolly", "rondec", "quadec"
+  profileFinish: string;          // finish key from PROFILE_FINISHES
   details: string;
   includeSchluterMaterials: string;
   // Tile Repair specific
@@ -681,7 +736,7 @@ function TileSizePicker({ size, onChange }: { size: TileSize; onChange: (s: Tile
         <div className="flex gap-3 items-end">
           <InchDropdown value={size.dim1} onChange={(v) => onChange({ ...size, dim1: v })} label="Width" />
           <span className="pb-3 text-gray-400 font-bold">&times;</span>
-          <InchDropdown value={size.dim2} onChange={(v) => onChange({ ...size, dim2: v })} label="Height" />
+          <InchDropdown value={size.dim2} onChange={(v) => onChange({ ...size, dim2: v })} label="Length" />
         </div>
       )}
 
@@ -1540,6 +1595,11 @@ export default function QuotePage() {
   const [areas, setAreas] = useState<AreaEntry[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [customFeature, setCustomFeature] = useState("");
+  const [nicheSize, setNicheSize] = useState("");
+  const [cornerShelfType, setCornerShelfType] = useState("");
+  const [toeShelfType, setToeShelfType] = useState("");
+  const [profileType, setProfileType] = useState("");
+  const [profileFinish, setProfileFinish] = useState("");
   const [details, setDetails] = useState("");
   const [includeSchluterMaterials, setIncludeSchluterMaterials] = useState("");
   // Tile Repair specific
@@ -1604,6 +1664,11 @@ export default function QuotePage() {
       areas,
       features,
       customFeature,
+      nicheSize,
+      cornerShelfType,
+      toeShelfType,
+      profileType,
+      profileFinish,
       details,
       includeSchluterMaterials,
       repairDescription,
@@ -1625,6 +1690,11 @@ export default function QuotePage() {
     setAreas([]);
     setFeatures([]);
     setCustomFeature("");
+    setNicheSize("");
+    setCornerShelfType("");
+    setToeShelfType("");
+    setProfileType("");
+    setProfileFinish("");
     setDetails("");
     setIncludeSchluterMaterials("");
     setRepairDescription("");
@@ -1666,6 +1736,11 @@ export default function QuotePage() {
     setAreas(p.areas);
     setFeatures(p.features);
     setCustomFeature(p.customFeature || "");
+    setNicheSize(p.nicheSize || "");
+    setCornerShelfType(p.cornerShelfType || "");
+    setToeShelfType(p.toeShelfType || "");
+    setProfileType(p.profileType || "");
+    setProfileFinish(p.profileFinish || "");
     setDetails(p.details);
     setIncludeSchluterMaterials(p.includeSchluterMaterials);
     setRepairDescription(p.repairDescription || "");
@@ -1701,9 +1776,17 @@ export default function QuotePage() {
   }
 
   function toggleFeature(f: string) {
-    setFeatures((prev) =>
-      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
-    );
+    setFeatures((prev) => {
+      const removing = prev.includes(f);
+      if (removing) {
+        // Clear sub-options when feature is deselected
+        if (f === "Niche (built-in shelf)") setNicheSize("");
+        if (f === "Corner Shelf") setCornerShelfType("");
+        if (f === "Toe Shelf") setToeShelfType("");
+        return prev.filter((x) => x !== f);
+      }
+      return [...prev, f];
+    });
   }
 
   const isShower = projectType === "Shower" || projectType === "Bathroom Remodel" || projectType === "Tub Surround";
@@ -1902,6 +1985,10 @@ export default function QuotePage() {
               `Materials (Schluter): ${proj.includeSchluterMaterials}`,
             proj.includeMortarGrout && `Mortar & grout: ${[proj.mortarSelected && "Mortar", proj.premixedGroutSelected && "Premixed Grout", proj.sandedGroutSelected && "Sanded Grout", proj.nonsandedGroutSelected && "Non-Sanded Grout"].filter(Boolean).join(", ")}`,
             proj.customFeature && `Other feature: ${proj.customFeature}`,
+            proj.nicheSize && `Niche size: ${NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize}`,
+            proj.cornerShelfType && `Corner shelf: ${SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType}`,
+            proj.toeShelfType && `Toe shelf: ${SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType}`,
+            proj.profileType && `Profile: ${PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType}${proj.profileFinish ? ` — ${PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish}` : ""}`,
             proj.repairDescription && `Repair needed: ${proj.repairDescription}`,
             proj.repairTileDescription && `Existing tile: ${proj.repairTileDescription}`,
             proj.details && proj.details,
@@ -1919,6 +2006,13 @@ export default function QuotePage() {
           squareFootage,
           areas: builtAreas,
           features: allFeatures.length > 0 ? allFeatures : undefined,
+          featureDetails: {
+            nicheSize: proj.nicheSize ? (NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize) : undefined,
+            cornerShelfType: proj.cornerShelfType ? (SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType) : undefined,
+            toeShelfType: proj.toeShelfType ? (SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType) : undefined,
+          },
+          profileType: proj.profileType ? (PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType) : undefined,
+          profileFinish: proj.profileFinish ? (PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish) : undefined,
           includeSchluterMaterials: proj.includeSchluterMaterials === "Yes",
           includeMortarGrout: proj.includeMortarGrout || undefined,
           mortarGroutSelections: proj.includeMortarGrout ? {
@@ -2085,7 +2179,28 @@ export default function QuotePage() {
             <h2 className="text-xl font-semibold text-navy">What type of project?</h2>
             <div className="space-y-3">
               {PROJECT_TYPES.map((t) => (
-                <button key={t} onClick={() => { setProjectType(t); initAreasForProject(t); }}
+                <button key={t} onClick={() => {
+                    setProjectType(t);
+                    initAreasForProject(t);
+                    // Reset all project-specific fields when changing type
+                    setCategoryLabel("");
+                    setFeatures([]);
+                    setCustomFeature("");
+                    setNicheSize("");
+                    setCornerShelfType("");
+                    setToeShelfType("");
+                    setProfileType("");
+                    setProfileFinish("");
+                    setDetails("");
+                    setIncludeSchluterMaterials("");
+                    setRepairDescription("");
+                    setRepairTileDescription("");
+                    setIncludeMortarGrout(false);
+                    setMortarSelected(false);
+                    setPremixedGroutSelected(false);
+                    setSandedGroutSelected(false);
+                    setNonsandedGroutSelected(false);
+                  }}
                   className={`w-full text-left px-5 py-4 rounded-lg border-2 transition-all ${
                     projectType === t ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-700 hover:border-gray-300"
                   }`}>
@@ -2206,12 +2321,50 @@ export default function QuotePage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Features you want (select all that apply)</label>
                     <div className="space-y-2">
                       {featureOptions.map((f) => (
-                        <button key={f} onClick={() => toggleFeature(f)}
-                          className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
-                            features.includes(f) ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                          }`}>
-                          {features.includes(f) ? "✓ " : ""}{f}
-                        </button>
+                        <div key={f}>
+                          <button onClick={() => toggleFeature(f)}
+                            className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
+                              features.includes(f) ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                            }`}>
+                            {features.includes(f) ? "✓ " : ""}{f}
+                          </button>
+                          {/* Niche size sub-dropdown */}
+                          {f === "Niche (built-in shelf)" && features.includes(f) && (
+                            <div className="ml-4 mt-1">
+                              <select value={nicheSize} onChange={(e) => setNicheSize(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Select niche size...</option>
+                                {NICHE_SIZES.map((n) => (
+                                  <option key={n.key} value={n.key}>{n.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          {/* Corner Shelf sub-dropdown */}
+                          {f === "Corner Shelf" && features.includes(f) && (
+                            <div className="ml-4 mt-1">
+                              <select value={cornerShelfType} onChange={(e) => setCornerShelfType(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Tiled or Schluter shelf?</option>
+                                {SHELF_TYPES.map((s) => (
+                                  <option key={s.key} value={s.key}>{s.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          {/* Toe Shelf sub-dropdown */}
+                          {f === "Toe Shelf" && features.includes(f) && (
+                            <div className="ml-4 mt-1">
+                              <select value={toeShelfType} onChange={(e) => setToeShelfType(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Tiled or Schluter shelf?</option>
+                                {SHELF_TYPES.map((s) => (
+                                  <option key={s.key} value={s.key}>{s.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                     {/* Custom feature text input */}
@@ -2275,19 +2428,35 @@ export default function QuotePage() {
                         </button>
                       ))}
                     </div>
-                    {/* Profile catalog links — shown for all non-repair, non-backsplash */}
+                    {/* Profile selection — shown for all non-repair, non-backsplash */}
                     {projectType !== "Tile Repair" && (
-                      <div className="mt-4 bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-medium mb-2">If you need edge trim profiles, browse options here:</p>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="mt-4 bg-gray-50 rounded-lg p-3 space-y-2">
+                        <p className="text-xs text-gray-500 font-medium">Edge trim profiles (optional):</p>
+                        <div className="flex flex-wrap gap-2 mb-2">
                           <a href="/schluter-catalog/profiles-jolly.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Jolly Profiles (PDF)</a>
+                            className="text-xs text-navy underline hover:text-navy-light">Jolly (PDF)</a>
                           <a href="/schluter-catalog/profiles-rondec.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Rondec Profiles (PDF)</a>
+                            className="text-xs text-navy underline hover:text-navy-light">Rondec (PDF)</a>
                           <a href="/schluter-catalog/profiles-quadec.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Quadec Profiles (PDF)</a>
+                            className="text-xs text-navy underline hover:text-navy-light">Quadec (PDF)</a>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Profile installation is included in tile labor — no extra charge.</p>
+                        <select value={profileType} onChange={(e) => { setProfileType(e.target.value); setProfileFinish(""); }}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                          <option value="">No profile needed</option>
+                          {PROFILE_TYPES.map((p) => (
+                            <option key={p.key} value={p.key}>{p.label}</option>
+                          ))}
+                        </select>
+                        {profileType && (
+                          <select value={profileFinish} onChange={(e) => setProfileFinish(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                            <option value="">Select finish...</option>
+                            {PROFILE_FINISHES.map((f) => (
+                              <option key={f.key} value={f.key}>{f.label}</option>
+                            ))}
+                          </select>
+                        )}
+                        <p className="text-xs text-gray-400">Profile installation is included in tile labor — no extra charge.</p>
                       </div>
                     )}
                   </div>
@@ -2446,6 +2615,11 @@ export default function QuotePage() {
                       areas,
                       features,
                       customFeature,
+                      nicheSize,
+                      cornerShelfType,
+                      toeShelfType,
+                      profileType,
+                      profileFinish,
                       details,
                       includeSchluterMaterials,
                       repairDescription,
