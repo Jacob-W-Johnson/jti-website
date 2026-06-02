@@ -302,8 +302,9 @@ const GROUT_WIDTHS = [
 
 // Schluter drain options (shown when shower floor has dimensions)
 const DRAIN_OPTIONS = [
-  { key: "4in", label: "4 inch Schluter Drain" },
-  { key: "linear", label: "Linear Drain (Kerdi-Line)" },
+  { key: "4in", label: "4\" Schluter Drain" },
+  { key: "vario", label: "Kerdi-Line Vario (Linear Drain)" },
+  { key: "kerdi_line", label: "Kerdi-Line (standard linear) — request only" },
 ] as const;
 
 function getEffectiveInches(value: number, customValue: string): number {
@@ -1239,32 +1240,52 @@ function AreaCard({
           </div>
           {area.drainType && (
             <div className="space-y-2 pl-2 border-l-2 border-navy/20">
-              <p className="text-xs text-gray-500">
-                <a
-                  href={area.drainType === "linear"
-                    ? "https://www.schluter.com/schluter-us/en_US/Shower-System/Drains/Kerdi-Line/c/KL"
-                    : "https://www.schluter.com/schluter-us/en_US/Shower-System/Drains/Kerdi-Drain/c/KD"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-navy underline hover:text-navy-light"
-                >
-                  Browse {area.drainType === "linear" ? "Kerdi-Line" : "Kerdi-Drain"} options on Schluter.com →
-                </a>
-              </p>
-              <input
-                type="text"
-                value={area.drainStyle}
-                onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-                placeholder="Drain style (e.g. Square, Floral, Pure)"
-              />
-              <input
-                type="text"
-                value={area.drainColor}
-                onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-                placeholder="Drain color/finish (e.g. Brushed Stainless Steel)"
-              />
+              {area.drainType === "4in" && (
+                <>
+                  <p className="text-xs text-gray-500 font-medium">Browse 4&quot; drain grate styles:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <a href="/schluter-catalog/drain-grates-metallic.jpg" target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-navy underline hover:text-navy-light">Metallic Finishes</a>
+                    <a href="/schluter-catalog/drain-grates-trendline-p1.jpg" target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-navy underline hover:text-navy-light">Trendline Colors (1)</a>
+                    <a href="/schluter-catalog/drain-grates-trendline-p2.jpg" target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-navy underline hover:text-navy-light">Trendline Colors (2)</a>
+                    <a href="/schluter-catalog/drain-grates-classic.jpg" target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-navy underline hover:text-navy-light">Classic &amp; Contour</a>
+                  </div>
+                </>
+              )}
+              {area.drainType === "vario" && (
+                <p className="text-xs text-gray-500">
+                  <a href="/schluter-catalog/kerdi-line-vario.pdf" target="_blank" rel="noopener noreferrer"
+                    className="text-navy underline hover:text-navy-light">
+                    View Kerdi-Line Vario options (PDF) →
+                  </a>
+                </p>
+              )}
+              {area.drainType === "kerdi_line" && (
+                <p className="text-xs text-gray-500">
+                  We will follow up with Kerdi-Line options and pricing for your project.
+                </p>
+              )}
+              {area.drainType !== "kerdi_line" && (
+                <>
+                  <input
+                    type="text"
+                    value={area.drainStyle}
+                    onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder={area.drainType === "4in" ? "Drain grate style (e.g. Pure, Floral, Classic)" : "Drain grate style (e.g. Square, Herringbone, Floral)"}
+                  />
+                  <input
+                    type="text"
+                    value={area.drainColor}
+                    onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder="Drain color/finish (e.g. Brushed Stainless Steel)"
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
@@ -2095,6 +2116,21 @@ export default function QuotePage() {
                         </button>
                       ))}
                     </div>
+                    {/* Profile catalog links — shown for all non-repair, non-backsplash */}
+                    {projectType !== "Tile Repair" && (
+                      <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 font-medium mb-2">If you need edge trim profiles, browse options here:</p>
+                        <div className="flex flex-wrap gap-2">
+                          <a href="/schluter-catalog/profiles-jolly.pdf" target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-navy underline hover:text-navy-light">Jolly Profiles (PDF)</a>
+                          <a href="/schluter-catalog/profiles-rondec.pdf" target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-navy underline hover:text-navy-light">Rondec Profiles (PDF)</a>
+                          <a href="/schluter-catalog/profiles-quadec.pdf" target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-navy underline hover:text-navy-light">Quadec Profiles (PDF)</a>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Profile installation is included in tile labor — no extra charge.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
