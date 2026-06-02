@@ -307,9 +307,104 @@ const DRAIN_OPTIONS = [
   { key: "kerdi_line", label: "Kerdi-Line (standard linear) — request only" },
 ] as const;
 
+// 4" drain grate styles
+const DRAIN_4IN_STYLES = [
+  { key: "pure", label: "Pure" },
+  { key: "curve", label: "Curve" },
+  { key: "floral", label: "Floral" },
+  { key: "diagonal", label: "Diagonal" },
+  { key: "quad", label: "Quad" },
+  { key: "square", label: "Square" },
+  { key: "parallel", label: "Parallel" },
+  { key: "classic", label: "Classic" },
+  { key: "contour", label: "Contour" },
+  { key: "tile", label: "Tile (tileable insert)" },
+] as const;
+
+// Finishes grouped by which styles they apply to
+const DRAIN_METALLIC_FINISHES = [
+  { key: "EB", label: "Brushed Stainless Steel" },
+  { key: "EBT", label: "Brushed Nickel" },
+  { key: "EBVG", label: "Brushed Vintage Gold" },
+  { key: "EBCG", label: "Brushed Classic Gold" },
+] as const;
+
+const DRAIN_TRENDLINE_FINISHES = [
+  { key: "MBW", label: "Matte White" },
+  { key: "TSI", label: "Ivory" },
+  { key: "TSBG", label: "Greige" },
+  { key: "TSC", label: "Cream" },
+  { key: "TSOB", label: "Bronze" },
+  { key: "TSSG", label: "Stone Grey" },
+  { key: "TSG", label: "Pewter" },
+  { key: "TSDA", label: "Dark Anthracite" },
+  { key: "MGS", label: "Matte Black" },
+] as const;
+
+const DRAIN_CLASSIC_FINISHES = [
+  { key: "E", label: "Stainless Steel" },
+  { key: "EP", label: "Chrome" },
+  { key: "EOB", label: "Oil-Rubbed Bronze" },
+  { key: "ET", label: "Nickel" },
+  { key: "EVG", label: "Vintage Gold" },
+  { key: "ECG", label: "Classic Gold" },
+] as const;
+
+const DRAIN_CONTOUR_FINISHES = [
+  { key: "ATGB", label: "Brushed Nickel" },
+  { key: "AKGB", label: "Brushed Copper" },
+  { key: "AMGB", label: "Brushed Brass" },
+] as const;
+
+function getDrainFinishOptions(style: string): { key: string; label: string }[] {
+  if (style === "classic") return [...DRAIN_CLASSIC_FINISHES];
+  if (style === "contour") return [...DRAIN_CONTOUR_FINISHES];
+  if (style === "tile") return [];
+  // Pure, Curve, Floral get metallic + trendline
+  if (["pure", "curve", "floral"].includes(style)) return [...DRAIN_METALLIC_FINISHES, ...DRAIN_TRENDLINE_FINISHES];
+  // Diagonal, Quad, Square, Parallel get brushed SS + trendline
+  return [{ key: "EB", label: "Brushed Stainless Steel" }, ...DRAIN_TRENDLINE_FINISHES];
+}
+
+// Kerdi-Line Vario grate styles
+const VARIO_STYLES = [
+  { key: "herringbone", label: "Herringbone" },
+  { key: "slant", label: "Slant" },
+  { key: "floral", label: "Floral" },
+  { key: "square", label: "Square" },
+] as const;
+
+const VARIO_FINISHES = [
+  { key: "EB", label: "Brushed Stainless Steel" },
+  { key: "MBW", label: "Matte White" },
+  { key: "TSI", label: "Ivory" },
+  { key: "TSBG", label: "Greige" },
+  { key: "TSC", label: "Cream" },
+  { key: "TSOB", label: "Bronze" },
+  { key: "TSSG", label: "Stone Grey" },
+  { key: "TSG", label: "Pewter" },
+  { key: "TSDA", label: "Dark Anthracite" },
+  { key: "MGS", label: "Matte Black" },
+] as const;
+
 function getEffectiveInches(value: number, customValue: string): number {
   if (value === -1) return parseFloat(customValue) || 0;
   return value;
+}
+
+function drainStyleLabel(drainType: string, style: string): string {
+  if (drainType === "4in") return DRAIN_4IN_STYLES.find(s => s.key === style)?.label || style;
+  if (drainType === "vario") return VARIO_STYLES.find(s => s.key === style)?.label || style;
+  return style;
+}
+
+function drainFinishLabel(drainType: string, style: string, finish: string): string {
+  if (drainType === "vario") return VARIO_FINISHES.find(f => f.key === finish)?.label || finish;
+  if (drainType === "4in" && style) {
+    const opts = getDrainFinishOptions(style);
+    return opts.find(f => f.key === finish)?.label || finish;
+  }
+  return finish;
 }
 
 function calcSqft(areaType: string, dimensions: AreaDimensions): number {
@@ -1243,7 +1338,7 @@ function AreaCard({
               {area.drainType === "4in" && (
                 <>
                   <p className="text-xs text-gray-500 font-medium">Browse 4&quot; drain grate styles:</p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     <a href="/schluter-catalog/drain-grates-metallic.jpg" target="_blank" rel="noopener noreferrer"
                       className="text-xs text-navy underline hover:text-navy-light">Metallic Finishes</a>
                     <a href="/schluter-catalog/drain-grates-trendline-p1.jpg" target="_blank" rel="noopener noreferrer"
@@ -1253,38 +1348,69 @@ function AreaCard({
                     <a href="/schluter-catalog/drain-grates-classic.jpg" target="_blank" rel="noopener noreferrer"
                       className="text-xs text-navy underline hover:text-navy-light">Classic &amp; Contour</a>
                   </div>
+                  <select
+                    value={area.drainStyle}
+                    onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value, drainColor: "" })}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+                  >
+                    <option value="">Select grate style...</option>
+                    {DRAIN_4IN_STYLES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                  {area.drainStyle && area.drainStyle !== "tile" && (() => {
+                    const finishOpts = getDrainFinishOptions(area.drainStyle);
+                    return finishOpts.length > 0 ? (
+                      <select
+                        value={area.drainColor}
+                        onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+                      >
+                        <option value="">Select finish...</option>
+                        {finishOpts.map((f) => (
+                          <option key={f.key} value={f.key}>{f.label}</option>
+                        ))}
+                      </select>
+                    ) : null;
+                  })()}
                 </>
               )}
               {area.drainType === "vario" && (
-                <p className="text-xs text-gray-500">
-                  <a href="/schluter-catalog/kerdi-line-vario.pdf" target="_blank" rel="noopener noreferrer"
-                    className="text-navy underline hover:text-navy-light">
-                    View Kerdi-Line Vario options (PDF) →
-                  </a>
-                </p>
+                <>
+                  <p className="text-xs text-gray-500">
+                    <a href="/schluter-catalog/kerdi-line-vario.pdf" target="_blank" rel="noopener noreferrer"
+                      className="text-navy underline hover:text-navy-light">
+                      View Kerdi-Line Vario options (PDF) →
+                    </a>
+                  </p>
+                  <select
+                    value={area.drainStyle}
+                    onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+                  >
+                    <option value="">Select grate style...</option>
+                    {VARIO_STYLES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                  {area.drainStyle && (
+                    <select
+                      value={area.drainColor}
+                      onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+                    >
+                      <option value="">Select finish...</option>
+                      {VARIO_FINISHES.map((f) => (
+                        <option key={f.key} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </>
               )}
               {area.drainType === "kerdi_line" && (
                 <p className="text-xs text-gray-500">
                   We will follow up with Kerdi-Line options and pricing for your project.
                 </p>
-              )}
-              {area.drainType !== "kerdi_line" && (
-                <>
-                  <input
-                    type="text"
-                    value={area.drainStyle}
-                    onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-                    placeholder={area.drainType === "4in" ? "Drain grate style (e.g. Pure, Floral, Classic)" : "Drain grate style (e.g. Square, Herringbone, Floral)"}
-                  />
-                  <input
-                    type="text"
-                    value={area.drainColor}
-                    onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-                    placeholder="Drain color/finish (e.g. Brushed Stainless Steel)"
-                  />
-                </>
               )}
             </div>
           )}
@@ -1720,8 +1846,10 @@ export default function QuotePage() {
               groutWidth: area.groutWidth ? (area.groutWidth === "other" ? area.groutWidthCustom : area.groutWidth) : undefined,
               heatedFloor: area.heatedFloor || undefined,
               drainType: area.drainType || undefined,
-              drainStyle: area.drainStyle || undefined,
-              drainColor: area.drainColor || undefined,
+              drainStyle: area.drainStyle ? drainStyleLabel(area.drainType, area.drainStyle) : undefined,
+              drainStyleKey: area.drainStyle || undefined,
+              drainColor: area.drainColor ? drainFinishLabel(area.drainType, area.drainStyle, area.drainColor) : undefined,
+              drainColorKey: area.drainColor || undefined,
               dimensions: area.dimensions,
             };
           })
@@ -2346,7 +2474,7 @@ export default function QuotePage() {
                         <p>{areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}</p>
                         {area.groutWidth && <p className="text-xs text-gray-500 pl-2">Grout: {area.groutWidth === "other" ? area.groutWidthCustom : GROUT_WIDTHS.find(g => g.key === area.groutWidth)?.label || area.groutWidth}</p>}
                         {area.heatedFloor && <p className="text-xs text-gray-500 pl-2">🔥 Heated floors (DITRA-HEAT)</p>}
-                        {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${area.drainStyle}` : ""}{area.drainColor ? ` (${area.drainColor})` : ""}</p>}
+                        {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${drainStyleLabel(area.drainType, area.drainStyle)}` : ""}{area.drainColor ? ` (${drainFinishLabel(area.drainType, area.drainStyle, area.drainColor)})` : ""}</p>}
                       </div>
                     ))}
                     {proj.features.length > 0 && (
@@ -2397,7 +2525,7 @@ export default function QuotePage() {
                       <p>{areaReviewText(area.areaType, area.dimensions, areaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}</p>
                       {area.groutWidth && <p className="text-xs text-gray-500 pl-2">Grout: {area.groutWidth === "other" ? area.groutWidthCustom : GROUT_WIDTHS.find(g => g.key === area.groutWidth)?.label || area.groutWidth}</p>}
                       {area.heatedFloor && <p className="text-xs text-gray-500 pl-2">🔥 Heated floors (DITRA-HEAT)</p>}
-                      {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${area.drainStyle}` : ""}{area.drainColor ? ` (${area.drainColor})` : ""}</p>}
+                      {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${drainStyleLabel(area.drainType, area.drainStyle)}` : ""}{area.drainColor ? ` (${drainFinishLabel(area.drainType, area.drainStyle, area.drainColor)})` : ""}</p>}
                     </div>
                   ))}
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
