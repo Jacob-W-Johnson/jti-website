@@ -144,6 +144,11 @@ const NICHE_SIZES = [
   { key: "custom", label: "Custom size (tile-built)" },
 ] as const;
 
+const NICHE_ORIENTATIONS = [
+  { key: "horizontal", label: "Horizontal" },
+  { key: "vertical", label: "Vertical" },
+] as const;
+
 // Sub-options for features that need them
 const SHELF_TYPES = [
   { key: "tiled", label: "Tiled shelf" },
@@ -569,6 +574,7 @@ type SavedProject = {
   features: string[];
   customFeature: string;          // free-text "other feature" input
   nicheSize: string;              // niche size key from NICHE_SIZES
+  nicheOrientation: string;       // "horizontal" or "vertical"
   cornerShelfType: string;        // "tiled" or "schluter"
   toeShelfType: string;           // "tiled" or "schluter"
   profileType: string;            // "jolly", "rondec", "quadec"
@@ -1596,6 +1602,7 @@ export default function QuotePage() {
   const [features, setFeatures] = useState<string[]>([]);
   const [customFeature, setCustomFeature] = useState("");
   const [nicheSize, setNicheSize] = useState("");
+  const [nicheOrientation, setNicheOrientation] = useState("");
   const [cornerShelfType, setCornerShelfType] = useState("");
   const [toeShelfType, setToeShelfType] = useState("");
   const [profileType, setProfileType] = useState("");
@@ -1665,6 +1672,7 @@ export default function QuotePage() {
       features,
       customFeature,
       nicheSize,
+      nicheOrientation,
       cornerShelfType,
       toeShelfType,
       profileType,
@@ -1691,6 +1699,7 @@ export default function QuotePage() {
     setFeatures([]);
     setCustomFeature("");
     setNicheSize("");
+    setNicheOrientation("");
     setCornerShelfType("");
     setToeShelfType("");
     setProfileType("");
@@ -1737,6 +1746,7 @@ export default function QuotePage() {
     setFeatures(p.features);
     setCustomFeature(p.customFeature || "");
     setNicheSize(p.nicheSize || "");
+    setNicheOrientation(p.nicheOrientation || "");
     setCornerShelfType(p.cornerShelfType || "");
     setToeShelfType(p.toeShelfType || "");
     setProfileType(p.profileType || "");
@@ -1780,7 +1790,7 @@ export default function QuotePage() {
       const removing = prev.includes(f);
       if (removing) {
         // Clear sub-options when feature is deselected
-        if (f === "Niche (built-in shelf)") setNicheSize("");
+        if (f === "Niche (built-in shelf)") { setNicheSize(""); setNicheOrientation(""); }
         if (f === "Corner Shelf") setCornerShelfType("");
         if (f === "Toe Shelf") setToeShelfType("");
         return prev.filter((x) => x !== f);
@@ -1985,7 +1995,7 @@ export default function QuotePage() {
               `Materials (Schluter): ${proj.includeSchluterMaterials}`,
             proj.includeMortarGrout && `Mortar & grout: ${[proj.mortarSelected && "Mortar", proj.premixedGroutSelected && "Premixed Grout", proj.sandedGroutSelected && "Sanded Grout", proj.nonsandedGroutSelected && "Non-Sanded Grout"].filter(Boolean).join(", ")}`,
             proj.customFeature && `Other feature: ${proj.customFeature}`,
-            proj.nicheSize && `Niche size: ${NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize}`,
+            proj.nicheSize && `Niche size: ${NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize}${proj.nicheOrientation ? ` (${NICHE_ORIENTATIONS.find(o => o.key === proj.nicheOrientation)?.label || proj.nicheOrientation})` : ""}`,
             proj.cornerShelfType && `Corner shelf: ${SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType}`,
             proj.toeShelfType && `Toe shelf: ${SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType}`,
             proj.profileType && `Profile: ${PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType}${proj.profileFinish ? ` — ${PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish}` : ""}`,
@@ -2008,6 +2018,7 @@ export default function QuotePage() {
           features: allFeatures.length > 0 ? allFeatures : undefined,
           featureDetails: {
             nicheSize: proj.nicheSize ? (NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize) : undefined,
+            nicheOrientation: proj.nicheOrientation ? (NICHE_ORIENTATIONS.find(o => o.key === proj.nicheOrientation)?.label || proj.nicheOrientation) : undefined,
             cornerShelfType: proj.cornerShelfType ? (SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType) : undefined,
             toeShelfType: proj.toeShelfType ? (SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType) : undefined,
           },
@@ -2187,6 +2198,7 @@ export default function QuotePage() {
                     setFeatures([]);
                     setCustomFeature("");
                     setNicheSize("");
+                    setNicheOrientation("");
                     setCornerShelfType("");
                     setToeShelfType("");
                     setProfileType("");
@@ -2328,14 +2340,21 @@ export default function QuotePage() {
                             }`}>
                             {features.includes(f) ? "✓ " : ""}{f}
                           </button>
-                          {/* Niche size sub-dropdown */}
+                          {/* Niche size + orientation sub-dropdowns */}
                           {f === "Niche (built-in shelf)" && features.includes(f) && (
-                            <div className="ml-4 mt-1">
+                            <div className="ml-4 mt-1 space-y-1">
                               <select value={nicheSize} onChange={(e) => setNicheSize(e.target.value)}
                                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
                                 <option value="">Select niche size...</option>
                                 {NICHE_SIZES.map((n) => (
                                   <option key={n.key} value={n.key}>{n.label}</option>
+                                ))}
+                              </select>
+                              <select value={nicheOrientation} onChange={(e) => setNicheOrientation(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Vertical or horizontal layout?</option>
+                                {NICHE_ORIENTATIONS.map((o) => (
+                                  <option key={o.key} value={o.key}>{o.label}</option>
                                 ))}
                               </select>
                             </div>
@@ -2616,6 +2635,7 @@ export default function QuotePage() {
                       features,
                       customFeature,
                       nicheSize,
+                      nicheOrientation,
                       cornerShelfType,
                       toeShelfType,
                       profileType,
