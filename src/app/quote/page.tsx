@@ -1337,17 +1337,10 @@ function AreaCard({
             <div className="space-y-2 pl-2 border-l-2 border-navy/20">
               {area.drainType === "4in" && (
                 <>
-                  <p className="text-xs text-gray-500 font-medium">Browse 4&quot; drain grate styles:</p>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <a href="/schluter-catalog/drain-grates-metallic.jpg" target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-navy underline hover:text-navy-light">Metallic Finishes</a>
-                    <a href="/schluter-catalog/drain-grates-trendline-p1.jpg" target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-navy underline hover:text-navy-light">Trendline Colors (1)</a>
-                    <a href="/schluter-catalog/drain-grates-trendline-p2.jpg" target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-navy underline hover:text-navy-light">Trendline Colors (2)</a>
-                    <a href="/schluter-catalog/drain-grates-classic.jpg" target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-navy underline hover:text-navy-light">Classic &amp; Contour</a>
-                  </div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    <a href="/schluter-catalog/drain-grates-4in.pdf" target="_blank" rel="noopener noreferrer"
+                      className="text-navy underline hover:text-navy-light">View 4&quot; drain grate options →</a>
+                  </p>
                   <select
                     value={area.drainStyle}
                     onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value, drainColor: "" })}
