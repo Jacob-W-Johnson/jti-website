@@ -101,18 +101,18 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
   "Bathroom Remodel": [
     "Niche (built-in shelf)",
     "Corner Bench",
-    "Floating Bench",
+    "Floating Corner Bench",
     "Corner Shelf",
     "Custom Curb",
-    "Schluter Drain",
+    "Curbless Entry",
   ],
   "Shower": [
     "Niche (built-in shelf)",
     "Corner Bench",
-    "Floating Bench",
+    "Floating Corner Bench",
     "Corner Shelf",
     "Custom Curb",
-    "Schluter Drain",
+    "Curbless Entry",
   ],
   "Tub Surround": [
     "Niche (built-in shelf)",
@@ -124,10 +124,10 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
   "Other": [
     "Niche (built-in shelf)",
     "Corner Bench",
-    "Floating Bench",
+    "Floating Corner Bench",
     "Corner Shelf",
     "Custom Curb",
-    "Schluter Drain",
+    "Curbless Entry",
   ],
 };
 
@@ -137,12 +137,15 @@ const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = 
     { key: "bathroom_floor", label: "Bathroom Floor" },
     { key: "shower_floor", label: "Shower Floor" },
     { key: "shower_walls", label: "Shower Walls" },
+    { key: "shower_ceiling", label: "Shower Ceiling" },
+    { key: "bathroom_walls", label: "Bathroom Walls" },
     { key: "tub_surround_walls", label: "Tub Surround Walls" },
     { key: "backsplash", label: "Backsplash" },
   ],
   "Shower": [
     { key: "shower_floor", label: "Shower Floor" },
     { key: "shower_walls", label: "Shower Walls" },
+    { key: "shower_ceiling", label: "Shower Ceiling" },
   ],
   "Tub Surround": [
     { key: "tub_surround_walls", label: "Tub Surround Walls" },
@@ -166,6 +169,8 @@ const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = 
     { key: "shower_floor", label: "Shower Floor" },
     { key: "bathroom_floor", label: "Bathroom Floor" },
     { key: "shower_walls", label: "Shower Walls" },
+    { key: "shower_ceiling", label: "Shower Ceiling" },
+    { key: "bathroom_walls", label: "Bathroom Walls" },
     { key: "tub_surround_walls", label: "Tub Surround Walls" },
     { key: "floor", label: "Floor" },
     { key: "backsplash", label: "Backsplash" },
@@ -254,6 +259,18 @@ function makeDefaultDimensions(areaType: string): AreaDimensions {
       ],
     };
   }
+  if (areaType === "bathroom_walls") {
+    return {
+      ...emptyDimensions,
+      wallCount: 4,
+      walls: [
+        { widthInches: 0, customWidth: "", label: "Wall 1" },
+        { widthInches: 0, customWidth: "", label: "Wall 2" },
+        { widthInches: 0, customWidth: "", label: "Wall 3" },
+        { widthInches: 0, customWidth: "", label: "Wall 4" },
+      ],
+    };
+  }
   return { ...emptyDimensions, walls: [{ widthInches: 0, customWidth: "", label: "" }] };
 }
 
@@ -270,8 +287,23 @@ const TILE_LAYOUTS = [
   { key: "half_offset", label: "1/2 Offset (Brick Lay)" },
   { key: "third_offset", label: "1/3 Offset" },
   { key: "herringbone", label: "Herringbone" },
-  { key: "soldier", label: "Soldier Lay" },
+  { key: "soldier", label: "Soldier Lay (Vertically Stacked)" },
   { key: "other", label: "Other / Custom" },
+] as const;
+
+// Grout joint width options
+const GROUT_WIDTHS = [
+  { key: "1/16", label: '1/16"' },
+  { key: "1/8", label: '1/8"' },
+  { key: "3/16", label: '3/16"' },
+  { key: "1/4", label: '1/4"' },
+  { key: "other", label: "Other" },
+] as const;
+
+// Schluter drain options (shown when shower floor has dimensions)
+const DRAIN_OPTIONS = [
+  { key: "4in", label: "4 inch Schluter Drain" },
+  { key: "linear", label: "Linear Drain (Kerdi-Line)" },
 ] as const;
 
 function getEffectiveInches(value: number, customValue: string): number {
@@ -280,8 +312,8 @@ function getEffectiveInches(value: number, customValue: string): number {
 }
 
 function calcSqft(areaType: string, dimensions: AreaDimensions): number {
-  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
-  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
+  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor" || areaType === "shower_ceiling";
+  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls" || areaType === "bathroom_walls";
   const isBacksplash = areaType === "backsplash";
 
   if (isFloor) {
@@ -298,8 +330,8 @@ function calcSqft(areaType: string, dimensions: AreaDimensions): number {
   }
   if (isBacksplash) {
     const h = dimensions.heightInches;
-    const w = dimensions.walls.length > 0 ? getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth) : 0;
-    if (h > 0 && w > 0) return Math.round((h * w) / 144 * 100) / 100;
+    const totalWidth = dimensions.walls.reduce((sum, wall) => sum + getEffectiveInches(wall.widthInches, wall.customWidth), 0);
+    if (h > 0 && totalWidth > 0) return Math.round((h * totalWidth) / 144 * 100) / 100;
     return 0;
   }
   return 0;
@@ -313,8 +345,8 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
       || (layout === "hex_flat_top" ? "Flat Side Up" : null)
       || layout)
     : "";
-  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor";
-  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls";
+  const isFloor = areaType === "floor" || areaType === "bathroom_floor" || areaType === "shower_floor" || areaType === "shower_ceiling";
+  const isWall = areaType === "shower_walls" || areaType === "tub_surround_walls" || areaType === "bathroom_walls";
   const isBacksplash = areaType === "backsplash";
   const layoutSuffix = layoutLabel ? ` — ${layoutLabel}` : "";
 
@@ -343,11 +375,14 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
   }
   if (isBacksplash) {
     const h = dimensions.heightInches;
-    const w = dimensions.walls.length > 0 ? getEffectiveInches(dimensions.walls[0].widthInches, dimensions.walls[0].customWidth) : 0;
-    if (h > 0 && w > 0) {
-      let text = `${displayName}: ${h}"H x ${w}"W (${sqft} sq ft)${layoutSuffix}`;
+    const totalWidth = dimensions.walls.reduce((sum, wall) => sum + getEffectiveInches(wall.widthInches, wall.customWidth), 0);
+    if (h > 0 && totalWidth > 0) {
+      let widthStr = dimensions.walls.length > 1
+        ? dimensions.walls.map((w, i) => `${getEffectiveInches(w.widthInches, w.customWidth)}"`).join(" + ")
+        : `${totalWidth}"W`;
+      let text = `${displayName}: ${h}"H x ${widthStr} (${sqft} sq ft)${layoutSuffix}`;
       if (dimensions.outlets > 0) text += `, ${dimensions.outlets} outlet${dimensions.outlets !== 1 ? "s" : ""}`;
-      if (dimensions.lightSwitches > 0) text += `, ${dimensions.lightSwitches} switch${dimensions.lightSwitches !== 1 ? "es" : ""}`;
+      if (dimensions.lightSwitches > 0) text += `, ${dimensions.lightSwitches} switch outlet${dimensions.lightSwitches !== 1 ? "s" : ""}`;
       return text;
     }
     return `${displayName}: dimensions not set`;
@@ -361,6 +396,12 @@ type AreaEntry = {
   dimensions: AreaDimensions;
   tileSize: TileSize;
   layout: string;
+  groutWidth: string;       // "1/16", "1/8", "3/16", "1/4", "other"
+  groutWidthCustom: string; // custom grout width when groutWidth === "other"
+  heatedFloor: boolean;     // DITRA-HEAT checkbox for floor areas
+  drainType: string;        // "4in" or "linear" — shower floor only
+  drainStyle: string;       // customer-chosen drain style text
+  drainColor: string;       // customer-chosen drain color text
 };
 
 // A staged photo — uploaded to blob immediately when the customer picks it.
@@ -380,8 +421,18 @@ type SavedProject = {
   categoryLabel: string;
   areas: AreaEntry[];
   features: string[];
+  customFeature: string;          // free-text "other feature" input
   details: string;
   includeSchluterMaterials: string;
+  // Tile Repair specific
+  repairDescription: string;
+  repairTileDescription: string;
+  // Backsplash / Tile Repair: mortar & grout selections
+  includeMortarGrout: boolean;
+  mortarSelected: boolean;
+  premixedGroutSelected: boolean;
+  sandedGroutSelected: boolean;
+  nonsandedGroutSelected: boolean;
   areaPhotos: StagedPhoto[];
   tilePhotos: StagedPhoto[];
 };
@@ -970,12 +1021,32 @@ function BacksplashDimensionInputs({
 }) {
   const wall = dimensions.walls[0] || { widthInches: 0, customWidth: "", label: "" };
 
-  const updateWall = (widthInches: number, customWidth?: string) => {
-    const newWall = { ...wall, widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? wall.customWidth : "") };
-    onChange({ ...dimensions, walls: [newWall, ...dimensions.walls.slice(1)] });
+  const updateWall = (idx: number, widthInches: number, customWidth?: string) => {
+    const newWalls = dimensions.walls.map((w, i) =>
+      i === idx ? { ...w, widthInches, customWidth: customWidth !== undefined ? customWidth : (widthInches === -1 ? w.customWidth : "") } : w
+    );
+    onChange({ ...dimensions, walls: newWalls });
   };
 
-  const sqft = calcSqft("backsplash", dimensions);
+  const addWidth = () => {
+    onChange({
+      ...dimensions,
+      walls: [...dimensions.walls, { widthInches: 0, customWidth: "", label: `Section ${dimensions.walls.length + 1}` }],
+    });
+  };
+
+  const removeWidth = (idx: number) => {
+    if (dimensions.walls.length <= 1) return;
+    onChange({ ...dimensions, walls: dimensions.walls.filter((_, i) => i !== idx) });
+  };
+
+  // Total sqft = height * sum of all widths / 144
+  const totalSqft = (() => {
+    const h = dimensions.heightInches;
+    const totalW = dimensions.walls.reduce((sum, w) => sum + getEffectiveInches(w.widthInches, w.customWidth), 0);
+    if (h > 0 && totalW > 0) return Math.round((h * totalW) / 144 * 100) / 100;
+    return 0;
+  })();
 
   return (
     <div className="space-y-2">
@@ -987,35 +1058,52 @@ function BacksplashDimensionInputs({
         options={BACKSPLASH_HEIGHT_OPTIONS}
         placeholder="Height"
       />
-      <p className="text-xs text-gray-400">If your ceiling is sloped, measure to the highest point</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="sloped-backsplash"
-          checked={dimensions.slopedCeiling}
-          onChange={(e) => onChange({ ...dimensions, slopedCeiling: e.target.checked })}
-          className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
-        />
-        <label htmlFor="sloped-backsplash" className="text-sm text-gray-600">Sloped ceiling</label>
-      </div>
-      <DimensionDropdown
-        value={wall.widthInches}
-        onChange={(v) => updateWall(v)}
-        label="Width"
-        options={WALL_WIDTH_OPTIONS}
-        overflowValue={-1}
-        overflowLabel={'>240"'}
-        placeholder="Width"
-      />
-      {wall.widthInches === -1 && (
-        <input
-          type="text"
-          value={wall.customWidth}
-          onChange={(e) => updateWall(-1, e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
-          placeholder="Custom width (inches)"
-        />
-      )}
+      {dimensions.walls.map((w, idx) => (
+        <div key={idx} className="space-y-1">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <DimensionDropdown
+                value={w.widthInches}
+                onChange={(v) => updateWall(idx, v)}
+                label={dimensions.walls.length > 1 ? `Width — ${w.label || `Section ${idx + 1}`}` : "Width"}
+                options={WALL_WIDTH_OPTIONS}
+                overflowValue={-1}
+                overflowLabel={'>240"'}
+                placeholder="Width"
+              />
+            </div>
+            {dimensions.walls.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeWidth(idx)}
+                className="mb-0.5 text-gray-400 hover:text-red-500 transition-colors p-1"
+                title="Remove width"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {w.widthInches === -1 && (
+            <input
+              type="text"
+              value={w.customWidth}
+              onChange={(e) => updateWall(idx, -1, e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+              placeholder="Custom width (inches)"
+            />
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addWidth}
+        className="text-sm text-navy font-medium hover:underline"
+      >
+        + Add an additional width
+      </button>
+      <p className="text-xs text-gray-400">Add a width for each contiguous change of plane (e.g. an L-shaped counter or wrap-around backsplash).</p>
       <DimensionDropdown
         value={dimensions.outlets}
         onChange={(v) => onChange({ ...dimensions, outlets: v })}
@@ -1027,13 +1115,13 @@ function BacksplashDimensionInputs({
       <DimensionDropdown
         value={dimensions.lightSwitches}
         onChange={(v) => onChange({ ...dimensions, lightSwitches: v })}
-        label="Light switches in tiled area"
+        label="Light switch outlets in tiled area"
         options={COUNT_OPTIONS_0_10}
         placeholder="0"
         displayFn={(v) => String(v)}
       />
-      {sqft > 0 && (
-        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      {totalSqft > 0 && (
+        <p className="text-xs text-gray-500">Calculated: {totalSqft} sq ft</p>
       )}
     </div>
   );
@@ -1058,9 +1146,13 @@ function AreaCard({
   allAreas: AreaEntry[];
 }) {
   const areaLabel = areaTypeOptions.find((o) => o.key === area.areaType)?.label || area.areaType;
-  const isFloorArea = area.areaType === "floor" || area.areaType === "bathroom_floor" || area.areaType === "shower_floor";
-  const isWallArea = area.areaType === "shower_walls" || area.areaType === "tub_surround_walls";
+  const isFloorArea = area.areaType === "floor" || area.areaType === "bathroom_floor" || area.areaType === "shower_floor" || area.areaType === "shower_ceiling";
+  const isWallArea = area.areaType === "shower_walls" || area.areaType === "tub_surround_walls" || area.areaType === "bathroom_walls";
   const isBacksplash = area.areaType === "backsplash";
+  const isShowerFloor = area.areaType === "shower_floor";
+  const showHeatedFloor = (area.areaType === "floor" || area.areaType === "bathroom_floor" || area.areaType === "shower_floor") && isFloorArea;
+  const showGroutWidth = area.tileSize.shape && area.tileSize.shape !== "mosaic" && area.tileSize.shape !== "penny_round";
+  const showerFloorHasDimensions = isShowerFloor && calcSqft(area.areaType, area.dimensions) > 0;
 
   return (
     <div className="bg-gray-50 rounded-xl p-4 space-y-3 relative">
@@ -1084,7 +1176,7 @@ function AreaCard({
       {/* Area type */}
       <AreaTypePicker
         value={area.areaType}
-        onChange={(v) => onUpdate({ ...area, areaType: v, dimensions: makeDefaultDimensions(v) })}
+        onChange={(v) => onUpdate({ ...area, areaType: v, dimensions: makeDefaultDimensions(v), heatedFloor: false, drainType: "", drainStyle: "", drainColor: "" })}
         options={areaTypeOptions}
       />
 
@@ -1111,15 +1203,108 @@ function AreaCard({
         />
       )}
 
+      {/* Heated floor checkbox — only for floor, bathroom_floor, shower_floor (NOT shower_ceiling) */}
+      {showHeatedFloor && (
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="checkbox"
+            id={`heated-${area.id}`}
+            checked={area.heatedFloor}
+            onChange={(e) => onUpdate({ ...area, heatedFloor: e.target.checked })}
+            className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+          />
+          <label htmlFor={`heated-${area.id}`} className="text-sm text-gray-600">
+            Add heated floors (DITRA-HEAT) to quote
+          </label>
+        </div>
+      )}
+
+      {/* Schluter drain — shower floor only, once dimensions are entered */}
+      {showerFloorHasDimensions && (
+        <div className="space-y-2 pt-1">
+          <label className="block text-sm font-medium text-gray-700">Schluter Drain</label>
+          <div className="space-y-2">
+            {DRAIN_OPTIONS.map((d) => (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => onUpdate({ ...area, drainType: area.drainType === d.key ? "" : d.key, drainStyle: area.drainType === d.key ? "" : area.drainStyle, drainColor: area.drainType === d.key ? "" : area.drainColor })}
+                className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
+                  area.drainType === d.key ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+          {area.drainType && (
+            <div className="space-y-2 pl-2 border-l-2 border-navy/20">
+              <p className="text-xs text-gray-500">
+                <a
+                  href={area.drainType === "linear"
+                    ? "https://www.schluter.com/schluter-us/en_US/Shower-System/Drains/Kerdi-Line/c/KL"
+                    : "https://www.schluter.com/schluter-us/en_US/Shower-System/Drains/Kerdi-Drain/c/KD"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-navy underline hover:text-navy-light"
+                >
+                  Browse {area.drainType === "linear" ? "Kerdi-Line" : "Kerdi-Drain"} options on Schluter.com →
+                </a>
+              </p>
+              <input
+                type="text"
+                value={area.drainStyle}
+                onChange={(e) => onUpdate({ ...area, drainStyle: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                placeholder="Drain style (e.g. Square, Floral, Pure)"
+              />
+              <input
+                type="text"
+                value={area.drainColor}
+                onChange={(e) => onUpdate({ ...area, drainColor: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                placeholder="Drain color/finish (e.g. Brushed Stainless Steel)"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tile size picker */}
       <TileSizePicker
         size={area.tileSize}
         onChange={(ts) => {
-          // Clear layout if tile shape changed (hex layouts don't apply to non-hex, etc.)
+          // Clear layout and grout width if tile shape changed
           const shapeChanged = ts.shape !== area.tileSize.shape;
-          onUpdate({ ...area, tileSize: ts, layout: shapeChanged ? "" : area.layout });
+          onUpdate({ ...area, tileSize: ts, layout: shapeChanged ? "" : area.layout, groutWidth: shapeChanged ? "" : area.groutWidth, groutWidthCustom: shapeChanged ? "" : area.groutWidthCustom });
         }}
       />
+
+      {/* Grout joint width — hidden for mosaic/penny round */}
+      {showGroutWidth && (
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Grout joint width</label>
+          <select
+            value={area.groutWidth}
+            onChange={(e) => onUpdate({ ...area, groutWidth: e.target.value, groutWidthCustom: e.target.value !== "other" ? "" : area.groutWidthCustom })}
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none"
+          >
+            <option value="">Select grout width...</option>
+            {GROUT_WIDTHS.map((g) => (
+              <option key={g.key} value={g.key}>{g.label}</option>
+            ))}
+          </select>
+          {area.groutWidth === "other" && (
+            <input
+              type="text"
+              value={area.groutWidthCustom}
+              onChange={(e) => onUpdate({ ...area, groutWidthCustom: e.target.value })}
+              className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+              placeholder="Specify grout joint width"
+            />
+          )}
+        </div>
+      )}
 
       {/* Layout pattern — hidden for mosaic/penny round, hex-specific options for hexagon */}
       {area.tileSize.shape && area.tileSize.shape !== "mosaic" && area.tileSize.shape !== "penny_round" && (() => {
@@ -1176,8 +1361,18 @@ export default function QuotePage() {
   const [categoryLabel, setCategoryLabel] = useState("");
   const [areas, setAreas] = useState<AreaEntry[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
+  const [customFeature, setCustomFeature] = useState("");
   const [details, setDetails] = useState("");
   const [includeSchluterMaterials, setIncludeSchluterMaterials] = useState("");
+  // Tile Repair specific
+  const [repairDescription, setRepairDescription] = useState("");
+  const [repairTileDescription, setRepairTileDescription] = useState("");
+  // Backsplash / Tile Repair: mortar & grout
+  const [includeMortarGrout, setIncludeMortarGrout] = useState(false);
+  const [mortarSelected, setMortarSelected] = useState(false);
+  const [premixedGroutSelected, setPremixedGroutSelected] = useState(false);
+  const [sandedGroutSelected, setSandedGroutSelected] = useState(false);
+  const [nonsandedGroutSelected, setNonsandedGroutSelected] = useState(false);
 
   // Photos — POOLED across all projects (not per-project)
   const [declinePhotos, setDeclinePhotos] = useState(false);
@@ -1212,6 +1407,12 @@ export default function QuotePage() {
         dimensions: makeDefaultDimensions(key),
         tileSize: { ...emptyTileSize },
         layout: "",
+        groutWidth: "",
+        groutWidthCustom: "",
+        heatedFloor: false,
+        drainType: "",
+        drainStyle: "",
+        drainColor: "",
       }))
     );
   }
@@ -1224,8 +1425,16 @@ export default function QuotePage() {
       categoryLabel,
       areas,
       features,
+      customFeature,
       details,
       includeSchluterMaterials,
+      repairDescription,
+      repairTileDescription,
+      includeMortarGrout,
+      mortarSelected,
+      premixedGroutSelected,
+      sandedGroutSelected,
+      nonsandedGroutSelected,
       areaPhotos,
       tilePhotos,
     };
@@ -1237,8 +1446,16 @@ export default function QuotePage() {
     setCategoryLabel("");
     setAreas([]);
     setFeatures([]);
+    setCustomFeature("");
     setDetails("");
     setIncludeSchluterMaterials("");
+    setRepairDescription("");
+    setRepairTileDescription("");
+    setIncludeMortarGrout(false);
+    setMortarSelected(false);
+    setPremixedGroutSelected(false);
+    setSandedGroutSelected(false);
+    setNonsandedGroutSelected(false);
     setAreaPhotos([]);
     setTilePhotos([]);
     setDeclinePhotos(false);
@@ -1270,8 +1487,16 @@ export default function QuotePage() {
     setCategoryLabel(p.categoryLabel);
     setAreas(p.areas);
     setFeatures(p.features);
+    setCustomFeature(p.customFeature || "");
     setDetails(p.details);
     setIncludeSchluterMaterials(p.includeSchluterMaterials);
+    setRepairDescription(p.repairDescription || "");
+    setRepairTileDescription(p.repairTileDescription || "");
+    setIncludeMortarGrout(p.includeMortarGrout || false);
+    setMortarSelected(p.mortarSelected || false);
+    setPremixedGroutSelected(p.premixedGroutSelected || false);
+    setSandedGroutSelected(p.sandedGroutSelected || false);
+    setNonsandedGroutSelected(p.nonsandedGroutSelected || false);
     setAreaPhotos(p.areaPhotos || []);
     setTilePhotos(p.tilePhotos || []);
     setDeclinePhotos(false);
@@ -1330,6 +1555,12 @@ export default function QuotePage() {
         dimensions: makeDefaultDimensions(defaultType),
         tileSize: { ...emptyTileSize },
         layout: "",
+        groutWidth: "",
+        groutWidthCustom: "",
+        heatedFloor: false,
+        drainType: "",
+        drainStyle: "",
+        drainColor: "",
       },
     ]);
   }
@@ -1424,6 +1655,8 @@ export default function QuotePage() {
         shower_floor: "Shower Floor",
         bathroom_floor: "Bathroom Floor",
         shower_walls: "Shower Walls",
+        shower_ceiling: "Shower Ceiling",
+        bathroom_walls: "Bathroom Walls",
         tub_surround_walls: "Tub Surround Walls",
         floor: "Floor",
         backsplash: "Backsplash",
@@ -1463,6 +1696,11 @@ export default function QuotePage() {
               tileDescription: tileDisplayLabel(area.tileSize),
               layout: area.layout || undefined,
               layoutLabel: area.layout ? (TILE_LAYOUTS.find((l) => l.key === area.layout)?.label || (area.layout === "hex_point_up" ? "Point Facing Up" : area.layout === "hex_flat_top" ? "Flat Side Up" : area.layout)) : undefined,
+              groutWidth: area.groutWidth ? (area.groutWidth === "other" ? area.groutWidthCustom : area.groutWidth) : undefined,
+              heatedFloor: area.heatedFloor || undefined,
+              drainType: area.drainType || undefined,
+              drainStyle: area.drainStyle || undefined,
+              drainColor: area.drainColor || undefined,
               dimensions: area.dimensions,
             };
           })
@@ -1480,20 +1718,37 @@ export default function QuotePage() {
         const projectDetails =
           [
             proj.categoryLabel && `Project name: ${proj.categoryLabel}`,
-            proj.includeSchluterMaterials &&
-              `Schluter setting materials: ${proj.includeSchluterMaterials}`,
+            proj.includeSchluterMaterials && proj.projectType !== "Backsplash Tile" && proj.projectType !== "Tile Repair" &&
+              `Materials (Schluter): ${proj.includeSchluterMaterials}`,
+            proj.includeMortarGrout && `Mortar & grout: ${[proj.mortarSelected && "Mortar", proj.premixedGroutSelected && "Premixed Grout", proj.sandedGroutSelected && "Sanded Grout", proj.nonsandedGroutSelected && "Non-Sanded Grout"].filter(Boolean).join(", ")}`,
+            proj.customFeature && `Other feature: ${proj.customFeature}`,
+            proj.repairDescription && `Repair needed: ${proj.repairDescription}`,
+            proj.repairTileDescription && `Existing tile: ${proj.repairTileDescription}`,
             proj.details && proj.details,
           ]
             .filter(Boolean)
             .join("\n") || undefined;
+
+        // Combine predefined features + custom feature
+        const allFeatures = [...(proj.features || [])];
+        if (proj.customFeature?.trim()) allFeatures.push(proj.customFeature.trim());
 
         return {
           projectType: proj.projectType,
           projectName: proj.categoryLabel || undefined,
           squareFootage,
           areas: builtAreas,
-          features: proj.features.length > 0 ? proj.features : undefined,
+          features: allFeatures.length > 0 ? allFeatures : undefined,
           includeSchluterMaterials: proj.includeSchluterMaterials === "Yes",
+          includeMortarGrout: proj.includeMortarGrout || undefined,
+          mortarGroutSelections: proj.includeMortarGrout ? {
+            mortar: proj.mortarSelected,
+            premixedGrout: proj.premixedGroutSelected,
+            sandedGrout: proj.sandedGroutSelected,
+            nonsandedGrout: proj.nonsandedGroutSelected,
+          } : undefined,
+          repairDescription: proj.repairDescription || undefined,
+          repairTileDescription: proj.repairTileDescription || undefined,
           projectDetails,
         };
       });
@@ -1670,9 +1925,8 @@ export default function QuotePage() {
         {step === "details" && (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold text-navy">Project Details</h2>
-            <p className="text-gray-500 text-sm">Add each area you need tiled. You can add multiple areas.</p>
 
-            {/* Category label — required */}
+            {/* Category label — required for all project types */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
               <p className="text-gray-500 text-xs mb-2">A short name so we both know which project this is (especially useful if you have more than one).</p>
@@ -1685,88 +1939,206 @@ export default function QuotePage() {
               />
             </div>
 
-            {/* Dynamic area cards */}
-            {areas.map((area, i) => (
-              <AreaCard
-                key={area.id}
-                area={area}
-                index={i}
-                areaTypeOptions={areaTypeOptions}
-                onUpdate={(updated) => updateArea(area.id, updated)}
-                onRemove={() => removeArea(area.id)}
-                canRemove={areas.length > 1}
-                allAreas={areas}
-              />
-            ))}
-
-            {/* Add area button */}
-            <button
-              type="button"
-              onClick={addArea}
-              className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 font-medium text-sm hover:border-navy hover:text-navy hover:bg-navy/5 transition-all"
-            >
-              + Add Another Area
-            </button>
-
-            {featureOptions.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Features you want (select all that apply)</label>
-                <div className="space-y-2">
-                  {featureOptions.map((f) => (
-                    <button key={f} onClick={() => toggleFeature(f)}
-                      className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
-                        features.includes(f) ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}>
-                      {features.includes(f) ? "+ " : ""}{f}
-                    </button>
-                  ))}
+            {/* ===== TILE REPAIR: simplified form ===== */}
+            {projectType === "Tile Repair" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Describe the repair needed *</label>
+                  <textarea value={repairDescription} onChange={(e) => setRepairDescription(e.target.value)} rows={4}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none resize-none"
+                    placeholder="What needs to be repaired? (e.g. cracked tiles in shower floor, grout crumbling on bathroom wall, loose tiles near tub)" />
                 </div>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tile description</label>
+                  <p className="text-gray-500 text-xs mb-2">Help us match your existing tile — size, shape, color, brand if known.</p>
+                  <input
+                    type="text"
+                    value={repairTileDescription}
+                    onChange={(e) => setRepairTileDescription(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                    placeholder="e.g. 12x24 white subway tile, grey hex penny round"
+                  />
+                </div>
+
+                {/* Mortar & grout for tile repair */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Do you want mortar and grout included in your quote?
+                  </label>
+                  <div className="flex gap-3 mb-3">
+                    <button onClick={() => setIncludeMortarGrout(true)}
+                      className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${includeMortarGrout ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>Yes</button>
+                    <button onClick={() => { setIncludeMortarGrout(false); setMortarSelected(false); setPremixedGroutSelected(false); setSandedGroutSelected(false); setNonsandedGroutSelected(false); }}
+                      className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${!includeMortarGrout ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>No</button>
+                  </div>
+                  {includeMortarGrout && (
+                    <div className="space-y-2 pl-2 border-l-2 border-navy/20">
+                      <p className="text-xs text-gray-500">Select what you need:</p>
+                      {[
+                        { state: mortarSelected, setter: setMortarSelected, label: "Mortar" },
+                        { state: premixedGroutSelected, setter: setPremixedGroutSelected, label: "Premixed Grout" },
+                        { state: sandedGroutSelected, setter: setSandedGroutSelected, label: "Sanded Grout" },
+                        { state: nonsandedGroutSelected, setter: setNonsandedGroutSelected, label: "Non-Sanded Grout" },
+                      ].map((item) => (
+                        <div key={item.label} className="flex items-center gap-2">
+                          <input type="checkbox" id={`repair-mg-${item.label}`} checked={item.state} onChange={(e) => item.setter(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy" />
+                          <label htmlFor={`repair-mg-${item.label}`} className="text-sm text-gray-600">{item.label}</label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Questions */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {isFloor
-                  ? "Do you want Schluter setting materials included in your quote?"
-                  : "Do you want waterproofing materials included in your quote?"}
-              </label>
-              <div className="flex gap-3">
-                {["Yes", "No", "Not sure"].map((opt) => (
-                  <button key={opt} onClick={() => setIncludeSchluterMaterials(opt)}
-                    className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${
-                      includeSchluterMaterials === opt ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}>
-                    {opt}{opt === "Yes" && isFloor ? " (recommended)" : ""}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* ===== NON-REPAIR project types ===== */}
+            {projectType !== "Tile Repair" && (
+              <>
+                <p className="text-gray-500 text-sm">Add each area you need tiled. You can add multiple areas.</p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Anything else we should know?</label>
-              <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none resize-none"
-                placeholder="Tile preferences, special requirements, etc." />
-            </div>
+                {/* Dynamic area cards */}
+                {areas.map((area, i) => (
+                  <AreaCard
+                    key={area.id}
+                    area={area}
+                    index={i}
+                    areaTypeOptions={areaTypeOptions}
+                    onUpdate={(updated) => updateArea(area.id, updated)}
+                    onRemove={() => removeArea(area.id)}
+                    canRemove={areas.length > 1}
+                    allAreas={areas}
+                  />
+                ))}
+
+                {/* Add area button */}
+                <button
+                  type="button"
+                  onClick={addArea}
+                  className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 font-medium text-sm hover:border-navy hover:text-navy hover:bg-navy/5 transition-all"
+                >
+                  + Add Another Area
+                </button>
+
+                {/* Features — only for project types that have them */}
+                {featureOptions.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Features you want (select all that apply)</label>
+                    <div className="space-y-2">
+                      {featureOptions.map((f) => (
+                        <button key={f} onClick={() => toggleFeature(f)}
+                          className={`w-full text-left px-4 py-3 rounded-lg border transition-all text-sm ${
+                            features.includes(f) ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                          }`}>
+                          {features.includes(f) ? "✓ " : ""}{f}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Custom feature text input */}
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={customFeature}
+                        onChange={(e) => setCustomFeature(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none"
+                        placeholder="Other feature not listed above"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Materials question — varies by project type */}
+                {projectType === "Backsplash Tile" ? (
+                  /* Backsplash: mortar & grout instead of waterproofing */
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Do you want mortar and grout included in your quote?
+                    </label>
+                    <div className="flex gap-3 mb-3">
+                      <button onClick={() => setIncludeMortarGrout(true)}
+                        className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${includeMortarGrout ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>Yes</button>
+                      <button onClick={() => { setIncludeMortarGrout(false); setMortarSelected(false); setPremixedGroutSelected(false); setSandedGroutSelected(false); setNonsandedGroutSelected(false); }}
+                        className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${!includeMortarGrout ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>No</button>
+                    </div>
+                    {includeMortarGrout && (
+                      <div className="space-y-2 pl-2 border-l-2 border-navy/20">
+                        <p className="text-xs text-gray-500">Select what you need:</p>
+                        {[
+                          { state: mortarSelected, setter: setMortarSelected, label: "Mortar" },
+                          { state: premixedGroutSelected, setter: setPremixedGroutSelected, label: "Premixed Grout" },
+                          { state: sandedGroutSelected, setter: setSandedGroutSelected, label: "Sanded Grout" },
+                          { state: nonsandedGroutSelected, setter: setNonsandedGroutSelected, label: "Non-Sanded Grout" },
+                        ].map((item) => (
+                          <div key={item.label} className="flex items-center gap-2">
+                            <input type="checkbox" id={`bs-mg-${item.label}`} checked={item.state} onChange={(e) => item.setter(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy" />
+                            <label htmlFor={`bs-mg-${item.label}`} className="text-sm text-gray-600">{item.label}</label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* All other project types: materials question (Schluter brand) */
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Do you want materials included in your quote?
+                      <span className="font-normal text-gray-500"> (all materials are Schluter brand)</span>
+                    </label>
+                    <div className="flex gap-3">
+                      {["Yes", "No", "Not sure"].map((opt) => (
+                        <button key={opt} onClick={() => setIncludeSchluterMaterials(opt)}
+                          className={`flex-1 px-3 py-3 rounded-lg border-2 text-sm transition-all ${
+                            includeSchluterMaterials === opt ? "border-navy bg-navy/5 text-navy font-medium" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                          }`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Anything else we should know?</label>
+                  <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none resize-none"
+                    placeholder="Tile preferences, special requirements, etc." />
+                </div>
+              </>
+            )}
 
             <div className="flex gap-3">
               <button onClick={() => setStep("project")} className="flex-1 py-3.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">Back</button>
-              <button onClick={() => setStep("photos")} disabled={!categoryLabel.trim()}
+              <button onClick={() => setStep("photos")} disabled={!categoryLabel.trim() || (projectType === "Tile Repair" && !repairDescription.trim())}
                 className="flex-1 py-3.5 rounded-lg text-white font-semibold bg-navy hover:bg-navy-light disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">Next</button>
             </div>
           </div>
         )}
 
         {/* Step: Photos */}
-        {step === "photos" && (
+        {step === "photos" && (() => {
+          const isTileRepair = projectType === "Tile Repair";
+          const repairPhotosValid = isTileRepair ? areaPhotos.length > 0 : true;
+          const canProceed = isTileRepair
+            ? areaPhotos.length > 0  // mandatory for repair
+            : (declinePhotos || areaPhotos.length > 0 || tilePhotos.length > 0);
+          return (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold text-navy">Photos</h2>
+
+            {isTileRepair && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-amber-900 text-sm font-medium">Photos are required for tile repair quotes.</p>
+                <p className="text-amber-800 text-xs mt-1">Please upload at least one photo of the area that needs repair so we can assess the scope of work.</p>
+              </div>
+            )}
 
             {!declinePhotos && (
               <>
                 <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Photos of the area to be tiled</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    {isTileRepair ? "Photos of the area needing repair *" : "Photos of the area to be tiled"}
+                  </p>
                   <p className="text-gray-500 text-xs mb-3">This helps us give you the most accurate estimate.</p>
                   <label htmlFor="area-photo-upload"
                     className={`block w-full border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${photoStaging.area ? "border-gray-300 bg-gray-50 cursor-wait" : "border-gray-300 hover:border-navy hover:bg-navy/5"}`}>
@@ -1779,8 +2151,6 @@ export default function QuotePage() {
                   <input id="area-photo-upload" type="file" accept="image/*" multiple className="hidden"
                     disabled={photoStaging.area}
                     onChange={(e) => {
-                      // Copy files to a real Array BEFORE clearing input —
-                      // iOS Safari invalidates the FileList when value is reset.
                       const files = e.target.files ? Array.from(e.target.files) : [];
                       e.target.value = "";
                       if (files.length > 0) handlePhotoSelect(files, "area");
@@ -1811,8 +2181,6 @@ export default function QuotePage() {
                   <input id="tile-photo-upload" type="file" accept="image/*" multiple className="hidden"
                     disabled={photoStaging.tile}
                     onChange={(e) => {
-                      // Copy files to a real Array BEFORE clearing input —
-                      // iOS Safari invalidates the FileList when value is reset.
                       const files = e.target.files ? Array.from(e.target.files) : [];
                       e.target.value = "";
                       if (files.length > 0) handlePhotoSelect(files, "tile");
@@ -1837,22 +2205,26 @@ export default function QuotePage() {
               </>
             )}
 
-            <div className="flex items-start gap-3 pt-2">
-              <input type="checkbox" id="decline-photos" checked={declinePhotos}
-                onChange={(e) => { setDeclinePhotos(e.target.checked); if (e.target.checked) { setAreaPhotos([]); setTilePhotos([]); } }}
-                className="mt-0.5 w-5 h-5 rounded border-gray-300 text-navy focus:ring-navy" />
-              <label htmlFor="decline-photos" className="text-sm text-gray-600">
-                I prefer not to send photos right now. I understand this may affect the accuracy of my estimate.
-              </label>
-            </div>
+            {/* Decline photos — NOT available for Tile Repair */}
+            {!isTileRepair && (
+              <div className="flex items-start gap-3 pt-2">
+                <input type="checkbox" id="decline-photos" checked={declinePhotos}
+                  onChange={(e) => { setDeclinePhotos(e.target.checked); if (e.target.checked) { setAreaPhotos([]); setTilePhotos([]); } }}
+                  className="mt-0.5 w-5 h-5 rounded border-gray-300 text-navy focus:ring-navy" />
+                <label htmlFor="decline-photos" className="text-sm text-gray-600">
+                  I prefer not to send photos right now. I understand this may affect the accuracy of my estimate.
+                </label>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button onClick={() => setStep("details")} className="flex-1 py-3.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">Back</button>
-              <button onClick={() => setStep("review")} disabled={!declinePhotos && areaPhotos.length === 0 && tilePhotos.length === 0}
+              <button onClick={() => setStep("review")} disabled={!canProceed}
                 className="flex-1 py-3.5 rounded-lg text-white font-semibold bg-navy hover:bg-navy-light disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">Review</button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Step: Review */}
         {step === "review" && (
@@ -1878,8 +2250,16 @@ export default function QuotePage() {
                       categoryLabel,
                       areas,
                       features,
+                      customFeature,
                       details,
                       includeSchluterMaterials,
+                      repairDescription,
+                      repairTileDescription,
+                      includeMortarGrout,
+                      mortarSelected,
+                      premixedGroutSelected,
+                      sandedGroutSelected,
+                      nonsandedGroutSelected,
                       areaPhotos,
                       tilePhotos,
                     }
@@ -1917,17 +2297,36 @@ export default function QuotePage() {
                       {proj.projectType}
                       {proj.categoryLabel ? ` — ${proj.categoryLabel}` : ""}
                     </p>
-                    {proj.areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
-                      <p key={area.id} className="text-gray-600 text-sm">
-                        {areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}
-                      </p>
+                    {/* Tile Repair review */}
+                    {proj.projectType === "Tile Repair" && (
+                      <>
+                        {proj.repairDescription && <p className="text-gray-600 text-sm">{proj.repairDescription}</p>}
+                        {proj.repairTileDescription && <p className="text-gray-600 text-sm">Tile: {proj.repairTileDescription}</p>}
+                      </>
+                    )}
+                    {/* Standard areas review */}
+                    {proj.projectType !== "Tile Repair" && proj.areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
+                      <div key={area.id} className="text-gray-600 text-sm">
+                        <p>{areaReviewText(area.areaType, area.dimensions, projAreaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}</p>
+                        {area.groutWidth && <p className="text-xs text-gray-500 pl-2">Grout: {area.groutWidth === "other" ? area.groutWidthCustom : GROUT_WIDTHS.find(g => g.key === area.groutWidth)?.label || area.groutWidth}</p>}
+                        {area.heatedFloor && <p className="text-xs text-gray-500 pl-2">🔥 Heated floors (DITRA-HEAT)</p>}
+                        {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${area.drainStyle}` : ""}{area.drainColor ? ` (${area.drainColor})` : ""}</p>}
+                      </div>
                     ))}
                     {proj.features.length > 0 && (
                       <p className="text-gray-600 text-sm">{proj.features.join(", ")}</p>
                     )}
-                    {proj.includeSchluterMaterials && (
+                    {proj.customFeature && (
+                      <p className="text-gray-600 text-sm">Other feature: {proj.customFeature}</p>
+                    )}
+                    {proj.includeSchluterMaterials && proj.projectType !== "Backsplash Tile" && proj.projectType !== "Tile Repair" && (
                       <p className="text-gray-600 text-sm">
-                        {projIsFloor ? "Schluter setting materials" : "Waterproofing materials"}: {proj.includeSchluterMaterials}
+                        Materials (Schluter): {proj.includeSchluterMaterials}
+                      </p>
+                    )}
+                    {proj.includeMortarGrout && (
+                      <p className="text-gray-600 text-sm">
+                        Mortar & grout: {[proj.mortarSelected && "Mortar", proj.premixedGroutSelected && "Premixed Grout", proj.sandedGroutSelected && "Sanded Grout", proj.nonsandedGroutSelected && "Non-Sanded Grout"].filter(Boolean).join(", ") || "Yes"}
                       </p>
                     )}
                     {proj.details && <p className="text-gray-600 text-sm">{proj.details}</p>}
@@ -1949,13 +2348,30 @@ export default function QuotePage() {
                     {categoryLabel || projectType}
                   </h3>
                   <p className="text-navy font-medium">{projectType}{categoryLabel ? ` — ${categoryLabel}` : ""}</p>
-                  {areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
-                    <p key={area.id} className="text-gray-600 text-sm">
-                      {areaReviewText(area.areaType, area.dimensions, areaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}
-                    </p>
+                  {/* Tile Repair live review */}
+                  {projectType === "Tile Repair" && (
+                    <>
+                      {repairDescription && <p className="text-gray-600 text-sm">{repairDescription}</p>}
+                      {repairTileDescription && <p className="text-gray-600 text-sm">Tile: {repairTileDescription}</p>}
+                    </>
+                  )}
+                  {/* Standard areas live review */}
+                  {projectType !== "Tile Repair" && areas.filter((a) => calcSqft(a.areaType, a.dimensions) > 0).map((area) => (
+                    <div key={area.id} className="text-gray-600 text-sm">
+                      <p>{areaReviewText(area.areaType, area.dimensions, areaDisplayName(area), area.layout)} — {tileDisplayLabel(area.tileSize) || "not specified"}</p>
+                      {area.groutWidth && <p className="text-xs text-gray-500 pl-2">Grout: {area.groutWidth === "other" ? area.groutWidthCustom : GROUT_WIDTHS.find(g => g.key === area.groutWidth)?.label || area.groutWidth}</p>}
+                      {area.heatedFloor && <p className="text-xs text-gray-500 pl-2">🔥 Heated floors (DITRA-HEAT)</p>}
+                      {area.drainType && <p className="text-xs text-gray-500 pl-2">Drain: {DRAIN_OPTIONS.find(d => d.key === area.drainType)?.label}{area.drainStyle ? ` — ${area.drainStyle}` : ""}{area.drainColor ? ` (${area.drainColor})` : ""}</p>}
+                    </div>
                   ))}
                   {features.length > 0 && <p className="text-gray-600 text-sm">{features.join(", ")}</p>}
-                  {includeSchluterMaterials && <p className="text-gray-600 text-sm">{isFloor ? "Schluter setting materials" : "Waterproofing materials"}: {includeSchluterMaterials}</p>}
+                  {customFeature && <p className="text-gray-600 text-sm">Other feature: {customFeature}</p>}
+                  {includeSchluterMaterials && projectType !== "Backsplash Tile" && projectType !== "Tile Repair" && <p className="text-gray-600 text-sm">Materials (Schluter): {includeSchluterMaterials}</p>}
+                  {includeMortarGrout && (
+                    <p className="text-gray-600 text-sm">
+                      Mortar & grout: {[mortarSelected && "Mortar", premixedGroutSelected && "Premixed Grout", sandedGroutSelected && "Sanded Grout", nonsandedGroutSelected && "Non-Sanded Grout"].filter(Boolean).join(", ") || "Yes"}
+                    </p>
+                  )}
                   {details && <p className="text-gray-600 text-sm">{details}</p>}
                   {(areaPhotos.length > 0 || tilePhotos.length > 0) && (
                     <p className="text-gray-600 text-sm">
