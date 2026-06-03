@@ -137,10 +137,10 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
 
 // Schluter prefab niche sizes (from 2026 catalog page 190)
 const NICHE_SIZES = [
-  { key: "6x12", label: '6" x 12" (Schluter KERDI-BOARD-SN)' },
-  { key: "12x12", label: '12" x 12" (Schluter KERDI-BOARD-SN)' },
-  { key: "20x12", label: '20" x 12" (Schluter KERDI-BOARD-SN)' },
-  { key: "28x12", label: '28" x 12" (Schluter KERDI-BOARD-SN)' },
+  { key: "6x12", label: '6" x 12"' },
+  { key: "12x12", label: '12" x 12"' },
+  { key: "20x12", label: '20" x 12"' },
+  { key: "28x12", label: '28" x 12"' },
   { key: "custom", label: "Custom size (tile-built)" },
 ] as const;
 
