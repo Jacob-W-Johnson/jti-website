@@ -155,7 +155,15 @@ const SHELF_TYPES = [
   { key: "schluter", label: "Schluter shelf" },
 ] as const;
 
-// Profile types for edge trim selection
+// Edge trim type selection (top-level)
+const EDGE_TRIM_TYPES = [
+  { key: "bullnose", label: "Bullnose" },
+  { key: "quarter_round", label: "Quarter-round" },
+  { key: "schluter", label: "Schluter Profile" },
+  { key: "other", label: "Other" },
+] as const;
+
+// Schluter profile shapes (shown when edge trim = "schluter")
 const PROFILE_TYPES = [
   { key: "jolly", label: "Jolly" },
   { key: "rondec", label: "Rondec" },
@@ -577,8 +585,9 @@ type SavedProject = {
   nicheOrientation: string;       // "horizontal" or "vertical"
   cornerShelfType: string;        // "tiled" or "schluter"
   toeShelfType: string;           // "tiled" or "schluter"
-  profileType: string;            // "jolly", "rondec", "quadec"
-  profileFinish: string;          // finish key from PROFILE_FINISHES
+  edgeTrimType: string;           // "bullnose", "quarter_round", "schluter", "other"
+  profileType: string;            // "jolly", "rondec", "quadec" (only when edgeTrimType === "schluter")
+  profileFinish: string;          // finish key from PROFILE_FINISHES (only when edgeTrimType === "schluter")
   details: string;
   includeSchluterMaterials: string;
   // Tile Repair specific
@@ -1605,6 +1614,7 @@ export default function QuotePage() {
   const [nicheOrientation, setNicheOrientation] = useState("");
   const [cornerShelfType, setCornerShelfType] = useState("");
   const [toeShelfType, setToeShelfType] = useState("");
+  const [edgeTrimType, setEdgeTrimType] = useState("");
   const [profileType, setProfileType] = useState("");
   const [profileFinish, setProfileFinish] = useState("");
   const [details, setDetails] = useState("");
@@ -1675,6 +1685,7 @@ export default function QuotePage() {
       nicheOrientation,
       cornerShelfType,
       toeShelfType,
+      edgeTrimType,
       profileType,
       profileFinish,
       details,
@@ -1702,6 +1713,7 @@ export default function QuotePage() {
     setNicheOrientation("");
     setCornerShelfType("");
     setToeShelfType("");
+    setEdgeTrimType("");
     setProfileType("");
     setProfileFinish("");
     setDetails("");
@@ -1749,6 +1761,7 @@ export default function QuotePage() {
     setNicheOrientation(p.nicheOrientation || "");
     setCornerShelfType(p.cornerShelfType || "");
     setToeShelfType(p.toeShelfType || "");
+    setEdgeTrimType(p.edgeTrimType || "");
     setProfileType(p.profileType || "");
     setProfileFinish(p.profileFinish || "");
     setDetails(p.details);
@@ -1999,6 +2012,7 @@ export default function QuotePage() {
             proj.cornerShelfType && `Corner shelf: ${SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType}`,
             proj.toeShelfType && `Toe shelf: ${SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType}`,
             proj.profileType && `Profile: ${PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType}${proj.profileFinish ? ` — ${PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish}` : ""}`,
+            proj.edgeTrimType && proj.edgeTrimType !== "schluter" && `Edge trim: ${EDGE_TRIM_TYPES.find(t => t.key === proj.edgeTrimType)?.label || proj.edgeTrimType}`,
             proj.repairDescription && `Repair needed: ${proj.repairDescription}`,
             proj.repairTileDescription && `Existing tile: ${proj.repairTileDescription}`,
             proj.details && proj.details,
@@ -2022,6 +2036,7 @@ export default function QuotePage() {
             cornerShelfType: proj.cornerShelfType ? (SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType) : undefined,
             toeShelfType: proj.toeShelfType ? (SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType) : undefined,
           },
+          edgeTrimType: proj.edgeTrimType ? (EDGE_TRIM_TYPES.find(t => t.key === proj.edgeTrimType)?.label || proj.edgeTrimType) : undefined,
           profileType: proj.profileType ? (PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType) : undefined,
           profileFinish: proj.profileFinish ? (PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish) : undefined,
           includeSchluterMaterials: proj.includeSchluterMaterials === "Yes",
@@ -2201,6 +2216,7 @@ export default function QuotePage() {
                     setNicheOrientation("");
                     setCornerShelfType("");
                     setToeShelfType("");
+                    setEdgeTrimType("");
                     setProfileType("");
                     setProfileFinish("");
                     setDetails("");
@@ -2447,35 +2463,46 @@ export default function QuotePage() {
                         </button>
                       ))}
                     </div>
-                    {/* Profile selection — shown for all non-repair, non-backsplash */}
+                    {/* Profile / edge trim selection — shown for all non-repair, non-backsplash */}
                     {projectType !== "Tile Repair" && (
                       <div className="mt-4 bg-gray-50 rounded-lg p-3 space-y-2">
                         <p className="text-xs text-gray-500 font-medium">Edge trim profiles (optional):</p>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          <a href="/schluter-catalog/profiles-jolly.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Jolly (PDF)</a>
-                          <a href="/schluter-catalog/profiles-rondec.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Rondec (PDF)</a>
-                          <a href="/schluter-catalog/profiles-quadec.pdf" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-navy underline hover:text-navy-light">Quadec (PDF)</a>
-                        </div>
-                        <select value={profileType} onChange={(e) => { setProfileType(e.target.value); setProfileFinish(""); }}
+                        <select value={edgeTrimType} onChange={(e) => { setEdgeTrimType(e.target.value); setProfileType(""); setProfileFinish(""); }}
                           className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
-                          <option value="">No profile needed</option>
-                          {PROFILE_TYPES.map((p) => (
-                            <option key={p.key} value={p.key}>{p.label}</option>
+                          <option value="">No edge trim needed</option>
+                          {EDGE_TRIM_TYPES.map((t) => (
+                            <option key={t.key} value={t.key}>{t.label}</option>
                           ))}
                         </select>
-                        {profileType && (
-                          <select value={profileFinish} onChange={(e) => setProfileFinish(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
-                            <option value="">Select finish...</option>
-                            {PROFILE_FINISHES.map((f) => (
-                              <option key={f.key} value={f.key}>{f.label}</option>
-                            ))}
-                          </select>
+                        {edgeTrimType === "schluter" && (
+                          <>
+                            <div className="flex flex-wrap gap-2">
+                              <a href="/schluter-catalog/profiles-jolly.pdf" target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-navy underline hover:text-navy-light">Jolly (PDF)</a>
+                              <a href="/schluter-catalog/profiles-rondec.pdf" target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-navy underline hover:text-navy-light">Rondec (PDF)</a>
+                              <a href="/schluter-catalog/profiles-quadec.pdf" target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-navy underline hover:text-navy-light">Quadec (PDF)</a>
+                            </div>
+                            <select value={profileType} onChange={(e) => { setProfileType(e.target.value); setProfileFinish(""); }}
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                              <option value="">Select profile shape...</option>
+                              {PROFILE_TYPES.map((p) => (
+                                <option key={p.key} value={p.key}>{p.label}</option>
+                              ))}
+                            </select>
+                            {profileType && (
+                              <select value={profileFinish} onChange={(e) => setProfileFinish(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Select finish...</option>
+                                {PROFILE_FINISHES.map((f) => (
+                                  <option key={f.key} value={f.key}>{f.label}</option>
+                                ))}
+                              </select>
+                            )}
+                          </>
                         )}
-                        <p className="text-xs text-gray-400">Profile installation is included in tile labor — no extra charge.</p>
+                        {edgeTrimType && <p className="text-xs text-gray-400">Profile installation is included in tile labor — no extra charge.</p>}
                       </div>
                     )}
                   </div>
@@ -2638,6 +2665,7 @@ export default function QuotePage() {
                       nicheOrientation,
                       cornerShelfType,
                       toeShelfType,
+                      edgeTrimType,
                       profileType,
                       profileFinish,
                       details,
