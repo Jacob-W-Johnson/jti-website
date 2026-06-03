@@ -1344,7 +1344,7 @@ function AreaCard({
   const isWallArea = area.areaType === "shower_walls" || area.areaType === "tub_surround_walls" || area.areaType === "bathroom_walls";
   const isBacksplash = area.areaType === "backsplash";
   const isShowerFloor = area.areaType === "shower_floor";
-  const showHeatedFloor = (area.areaType === "floor" || area.areaType === "bathroom_floor" || area.areaType === "shower_floor") && isFloorArea;
+  const showHeatedFloor = (area.areaType === "floor" || area.areaType === "bathroom_floor") && isFloorArea;
   const showGroutWidth = area.tileSize.shape && area.tileSize.shape !== "mosaic" && area.tileSize.shape !== "penny_round";
   const showerFloorHasDimensions = isShowerFloor && calcSqft(area.areaType, area.dimensions) > 0;
 
@@ -1398,7 +1398,7 @@ function AreaCard({
         />
       )}
 
-      {/* Heated floor checkbox — only for floor, bathroom_floor, shower_floor (NOT shower_ceiling) */}
+      {/* Heated floor checkbox — only for floor and bathroom_floor (NOT shower_floor or shower_ceiling) */}
       {showHeatedFloor && (
         <div className="flex items-center gap-2 pt-1">
           <input
