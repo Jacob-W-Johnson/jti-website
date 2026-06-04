@@ -155,6 +155,11 @@ const SHELF_TYPES = [
   { key: "schluter", label: "Schluter shelf" },
 ] as const;
 
+const BENCH_SIZES = [
+  { key: "16", label: '16" triangular' },
+  { key: "24", label: '24" triangular' },
+] as const;
+
 // Edge trim type selection (top-level)
 const EDGE_TRIM_TYPES = [
   { key: "bullnose", label: "Bullnose" },
@@ -585,6 +590,7 @@ type SavedProject = {
   nicheOrientation: string;       // "horizontal" or "vertical"
   cornerShelfType: string;        // "tiled" or "schluter"
   toeShelfType: string;           // "tiled" or "schluter"
+  cornerBenchSize: string;        // "16" or "24" (inches, triangular)
   edgeTrimType: string;           // "bullnose", "quarter_round", "schluter", "other"
   profileType: string;            // "jolly", "rondec", "quadec" (only when edgeTrimType === "schluter")
   profileFinish: string;          // finish key from PROFILE_FINISHES (only when edgeTrimType === "schluter")
@@ -1614,6 +1620,7 @@ export default function QuotePage() {
   const [nicheOrientation, setNicheOrientation] = useState("");
   const [cornerShelfType, setCornerShelfType] = useState("");
   const [toeShelfType, setToeShelfType] = useState("");
+  const [cornerBenchSize, setCornerBenchSize] = useState("");
   const [edgeTrimType, setEdgeTrimType] = useState("");
   const [profileType, setProfileType] = useState("");
   const [profileFinish, setProfileFinish] = useState("");
@@ -1685,6 +1692,7 @@ export default function QuotePage() {
       nicheOrientation,
       cornerShelfType,
       toeShelfType,
+      cornerBenchSize,
       edgeTrimType,
       profileType,
       profileFinish,
@@ -1713,6 +1721,7 @@ export default function QuotePage() {
     setNicheOrientation("");
     setCornerShelfType("");
     setToeShelfType("");
+    setCornerBenchSize("");
     setEdgeTrimType("");
     setProfileType("");
     setProfileFinish("");
@@ -1761,6 +1770,7 @@ export default function QuotePage() {
     setNicheOrientation(p.nicheOrientation || "");
     setCornerShelfType(p.cornerShelfType || "");
     setToeShelfType(p.toeShelfType || "");
+    setCornerBenchSize(p.cornerBenchSize || "");
     setEdgeTrimType(p.edgeTrimType || "");
     setProfileType(p.profileType || "");
     setProfileFinish(p.profileFinish || "");
@@ -1804,6 +1814,7 @@ export default function QuotePage() {
       if (removing) {
         // Clear sub-options when feature is deselected
         if (f === "Niche (built-in shelf)") { setNicheSize(""); setNicheOrientation(""); }
+        if (f === "Corner Bench") setCornerBenchSize("");
         if (f === "Corner Shelf") setCornerShelfType("");
         if (f === "Toe Shelf") setToeShelfType("");
         return prev.filter((x) => x !== f);
@@ -2011,6 +2022,7 @@ export default function QuotePage() {
             proj.nicheSize && `Niche size: ${NICHE_SIZES.find(n => n.key === proj.nicheSize)?.label || proj.nicheSize}${proj.nicheOrientation ? ` (${NICHE_ORIENTATIONS.find(o => o.key === proj.nicheOrientation)?.label || proj.nicheOrientation})` : ""}`,
             proj.cornerShelfType && `Corner shelf: ${SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType}`,
             proj.toeShelfType && `Toe shelf: ${SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType}`,
+            proj.cornerBenchSize && `Corner bench: ${BENCH_SIZES.find(b => b.key === proj.cornerBenchSize)?.label || proj.cornerBenchSize}`,
             proj.profileType && `Profile: ${PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType}${proj.profileFinish ? ` — ${PROFILE_FINISHES.find(f => f.key === proj.profileFinish)?.label || proj.profileFinish}` : ""}`,
             proj.edgeTrimType && proj.edgeTrimType !== "schluter" && `Edge trim: ${EDGE_TRIM_TYPES.find(t => t.key === proj.edgeTrimType)?.label || proj.edgeTrimType}`,
             proj.repairDescription && `Repair needed: ${proj.repairDescription}`,
@@ -2035,6 +2047,7 @@ export default function QuotePage() {
             nicheOrientation: proj.nicheOrientation ? (NICHE_ORIENTATIONS.find(o => o.key === proj.nicheOrientation)?.label || proj.nicheOrientation) : undefined,
             cornerShelfType: proj.cornerShelfType ? (SHELF_TYPES.find(s => s.key === proj.cornerShelfType)?.label || proj.cornerShelfType) : undefined,
             toeShelfType: proj.toeShelfType ? (SHELF_TYPES.find(s => s.key === proj.toeShelfType)?.label || proj.toeShelfType) : undefined,
+            cornerBenchSize: proj.cornerBenchSize || undefined,
           },
           edgeTrimType: proj.edgeTrimType ? (EDGE_TRIM_TYPES.find(t => t.key === proj.edgeTrimType)?.label || proj.edgeTrimType) : undefined,
           profileType: proj.profileType ? (PROFILE_TYPES.find(p => p.key === proj.profileType)?.label || proj.profileType) : undefined,
@@ -2216,6 +2229,7 @@ export default function QuotePage() {
                     setNicheOrientation("");
                     setCornerShelfType("");
                     setToeShelfType("");
+                    setCornerBenchSize("");
                     setEdgeTrimType("");
                     setProfileType("");
                     setProfileFinish("");
@@ -2395,6 +2409,18 @@ export default function QuotePage() {
                                 <option value="">Tiled or Schluter shelf?</option>
                                 {SHELF_TYPES.map((s) => (
                                   <option key={s.key} value={s.key}>{s.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          {/* Corner Bench size dropdown */}
+                          {f === "Corner Bench" && features.includes(f) && (
+                            <div className="ml-4 mt-1">
+                              <select value={cornerBenchSize} onChange={(e) => setCornerBenchSize(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-navy focus:border-navy outline-none bg-white appearance-none">
+                                <option value="">Select bench size</option>
+                                {BENCH_SIZES.map((b) => (
+                                  <option key={b.key} value={b.key}>{b.label}</option>
                                 ))}
                               </select>
                             </div>
@@ -2665,6 +2691,7 @@ export default function QuotePage() {
                       nicheOrientation,
                       cornerShelfType,
                       toeShelfType,
+                      cornerBenchSize,
                       edgeTrimType,
                       profileType,
                       profileFinish,
