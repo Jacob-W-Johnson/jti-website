@@ -90,6 +90,7 @@ const PROJECT_TYPES = [
   "Bathroom Remodel",
   "Shower",
   "Tub Surround",
+  "Tub to Shower Conversion",
   "Floor Tile",
   "Backsplash Tile",
   "Tile Repair",
@@ -120,6 +121,15 @@ const FEATURES_BY_PROJECT: Record<string, string[]> = {
     "Niche (built-in shelf)",
     "Corner Shelf",
     "Toe Shelf",
+  ],
+  "Tub to Shower Conversion": [
+    "Niche (built-in shelf)",
+    "Corner Bench",
+    "Floating Corner Bench",
+    "Corner Shelf",
+    "Toe Shelf",
+    "Custom Curb",
+    "Curbless Entry",
   ],
   "Floor Tile": [],
   "Backsplash Tile": [],
@@ -216,6 +226,11 @@ const AREA_TYPES_BY_PROJECT: Record<string, { key: string; label: string }[]> = 
   ],
   "Tub Surround": [
     { key: "tub_surround_walls", label: "Tub Surround Walls" },
+  ],
+  "Tub to Shower Conversion": [
+    { key: "shower_floor", label: "Shower Floor" },
+    { key: "shower_walls", label: "Shower Walls" },
+    { key: "shower_ceiling", label: "Shower Ceiling" },
   ],
   "Floor Tile": [
     { key: "floor", label: "Floor" },
@@ -1603,6 +1618,8 @@ export default function QuotePage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [needsDemolition, setNeedsDemolition] = useState("");
+  const [needsPlumber, setNeedsPlumber] = useState("");
 
   // Multi-project model: list of saved projects + the one currently being filled
   // currentProject is "live" form state. On review, user can Add another -> save current and start fresh.
@@ -1656,6 +1673,7 @@ export default function QuotePage() {
       "Bathroom Remodel": ["bathroom_floor", "shower_floor", "shower_walls"],
       "Shower": ["shower_floor", "shower_walls"],
       "Tub Surround": ["tub_surround_walls"],
+      "Tub to Shower Conversion": ["shower_floor", "shower_walls"],
       "Floor Tile": ["floor"],
       "Backsplash Tile": ["backsplash"],
       "Tile Repair": [],
@@ -1823,7 +1841,7 @@ export default function QuotePage() {
     });
   }
 
-  const isShower = projectType === "Shower" || projectType === "Bathroom Remodel" || projectType === "Tub Surround";
+  const isShower = projectType === "Shower" || projectType === "Bathroom Remodel" || projectType === "Tub Surround" || projectType === "Tub to Shower Conversion";
   const isFloor = projectType === "Floor Tile";
   const areaTypeOptions = AREA_TYPES_BY_PROJECT[projectType] || [];
   const featureOptions = FEATURES_BY_PROJECT[projectType] || [];
@@ -2078,6 +2096,8 @@ export default function QuotePage() {
           customerPhone: phone,
           customerEmail: email || undefined,
           siteAddress: address,
+          needsDemolition: needsDemolition || undefined,
+          needsPlumber: needsPlumber || undefined,
           // Legacy top-level fields (backend will fall back to these if `projects` not handled)
           projectType: first?.projectType,
           projectName: first?.projectName,
@@ -2204,6 +2224,24 @@ export default function QuotePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Project Address *</label>
               <input type="text" value={address} onChange={(e) => setAddress(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-navy focus:border-navy outline-none" placeholder="Where is the project?" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Do you need demolition of your existing setup?</label>
+              <div className="flex gap-3">
+                {["Yes", "No", "Not sure"].map((opt) => (
+                  <button key={opt} onClick={() => setNeedsDemolition(opt)}
+                    className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors ${needsDemolition === opt ? "border-navy bg-navy/5 text-navy" : "border-gray-200 text-gray-700 hover:border-gray-300"}`}>{opt}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Do you need a plumber?</label>
+              <div className="flex gap-3">
+                {["Yes", "No", "Not sure"].map((opt) => (
+                  <button key={opt} onClick={() => setNeedsPlumber(opt)}
+                    className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors ${needsPlumber === opt ? "border-navy bg-navy/5 text-navy" : "border-gray-200 text-gray-700 hover:border-gray-300"}`}>{opt}</button>
+                ))}
+              </div>
             </div>
             <button onClick={() => setStep("project")} disabled={!name || !phone || !address}
               className="w-full py-3.5 rounded-lg text-white font-semibold bg-navy hover:bg-navy-light disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
@@ -2673,6 +2711,8 @@ export default function QuotePage() {
                 <p className="text-gray-600 text-sm">{phone}</p>
                 {email && <p className="text-gray-600 text-sm">{email}</p>}
                 <p className="text-gray-600 text-sm">{address}</p>
+                {needsDemolition && <p className="text-gray-600 text-sm">Demolition: {needsDemolition}</p>}
+                {needsPlumber && <p className="text-gray-600 text-sm">Plumber: {needsPlumber}</p>}
               </div>
 
               {/* Render each saved project as a card. When editing, the live form's content overrides the snapshot at that index. */}
