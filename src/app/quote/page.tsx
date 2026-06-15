@@ -305,6 +305,8 @@ type AreaDimensions = {
   walls: { widthInches: number; customWidth: string; label: string }[]; // per-wall widths, 6-240" or custom >240
   slopedCeiling: boolean;
   wallCount: number;     // default 3 for shower
+  // For tub surround walls
+  tubHeightInches: number; // 14-18" (floor to top of tub rim), subtracted from total height
   // For backsplash
   // uses heightInches + one wall width + outlets/switches
   outlets: number;       // number of electrical outlets in tiled area
@@ -315,6 +317,7 @@ const emptyDimensions: AreaDimensions = {
   widthInches: 0, lengthInches: 0, customWidth: "", customLength: "",
   heightInches: 0, walls: [{ widthInches: 0, customWidth: "", label: "" }],
   slopedCeiling: false, wallCount: 3,
+  tubHeightInches: 0,
   outlets: 0, lightSwitches: 0,
 };
 
@@ -361,6 +364,7 @@ const FLOOR_INCH_OPTIONS = [...Array.from({ length: 600 - 36 + 1 }, (_, i) => i 
 const WALL_HEIGHT_OPTIONS = Array.from({ length: 144 - 72 + 1 }, (_, i) => i + 72); // 72-144
 const WALL_WIDTH_OPTIONS = [...Array.from({ length: 240 - 6 + 1 }, (_, i) => i + 6), -1]; // 6-240 + ">240"
 const BACKSPLASH_HEIGHT_OPTIONS = Array.from({ length: 144 - 6 + 1 }, (_, i) => i + 6); // 6-144
+const TUB_HEIGHT_OPTIONS = Array.from({ length: 18 - 14 + 1 }, (_, i) => i + 14); // 14-18"
 const COUNT_OPTIONS_0_10 = Array.from({ length: 11 }, (_, i) => i); // 0-10
 
 // Tile layout patterns
@@ -502,7 +506,11 @@ function calcSqft(areaType: string, dimensions: AreaDimensions): number {
     return 0;
   }
   if (isWall) {
-    const h = dimensions.heightInches;
+    let h = dimensions.heightInches;
+    // For tub surround, subtract tub height (only tile area above the tub)
+    if (areaType === "tub_surround_walls" && dimensions.tubHeightInches > 0) {
+      h = h - dimensions.tubHeightInches;
+    }
     const totalWidth = dimensions.walls.reduce((sum, wall) => sum + getEffectiveInches(wall.widthInches, wall.customWidth), 0);
     if (h > 0 && totalWidth > 0) return Math.round((h * totalWidth) / 144 * 100) / 100;
     return 0;
@@ -548,7 +556,10 @@ function areaReviewText(areaType: string, dimensions: AreaDimensions, displayNam
           return wall.label ? `${wall.label}: ${w}"` : `${w}"`;
         })
         .join(", ");
-      return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr}) = ${sqft} sq ft${layoutSuffix}`;
+      const tubNote = areaType === "tub_surround_walls" && dimensions.tubHeightInches > 0
+        ? ` (tub ${dimensions.tubHeightInches}", tile height ${h - dimensions.tubHeightInches}")`
+        : "";
+      return `${displayName}: ${h}"H x ${wallWidths.length} wall${wallWidths.length !== 1 ? "s" : ""} (${wallStr})${tubNote} = ${sqft} sq ft${layoutSuffix}`;
     }
     return `${displayName}: dimensions not set`;
   }
@@ -1053,8 +1064,29 @@ function FloorDimensionInputs({
         <p className="text-xs text-gray-400">Auto-filled from shower wall dimensions. Edit if your shower floor is not rectangular.</p>
       )}
       {sqft > 0 && (
-        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+        <OverageDisplay sqft={sqft} />
       )}
+    </div>
+  );
+}
+
+// Overage percentage display — shows base sqft + 10%, 15%, 20% overage options
+function OverageDisplay({ sqft }: { sqft: number }) {
+  const overages = [
+    { pct: 10, sqft: Math.round(sqft * 1.10 * 100) / 100 },
+    { pct: 15, sqft: Math.round(sqft * 1.15 * 100) / 100 },
+    { pct: 20, sqft: Math.round(sqft * 1.20 * 100) / 100 },
+  ];
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        {overages.map((o) => (
+          <span key={o.pct} className="inline-block text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5">
+            +{o.pct}%: {o.sqft} sq ft
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1140,6 +1172,10 @@ function WallDimensionInputs({
   };
 
   const sqft = calcSqft(areaType, dimensions);
+  const isTubSurround = areaType === "tub_surround_walls";
+  const tileHeightInches = isTubSurround && dimensions.tubHeightInches > 0
+    ? dimensions.heightInches - dimensions.tubHeightInches
+    : 0;
 
   return (
     <div className="space-y-2">
@@ -1147,21 +1183,42 @@ function WallDimensionInputs({
       <DimensionDropdown
         value={dimensions.heightInches}
         onChange={(v) => { setManuallyEdited(true); setAutoFilled(false); onChange({ ...dimensions, heightInches: v }); }}
-        label="Height"
+        label={isTubSurround ? "Total height (floor to where tile ends)" : "Height"}
         options={WALL_HEIGHT_OPTIONS}
         placeholder="Height"
       />
-      <p className="text-xs text-gray-400">If your ceiling is sloped, measure to the highest point</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id={`sloped-${areaType}`}
-          checked={dimensions.slopedCeiling}
-          onChange={(e) => onChange({ ...dimensions, slopedCeiling: e.target.checked })}
-          className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
-        />
-        <label htmlFor={`sloped-${areaType}`} className="text-sm text-gray-600">Sloped ceiling</label>
-      </div>
+      {isTubSurround ? (
+        <p className="text-xs text-gray-400">Measure from the floor to where you want the tile to stop</p>
+      ) : (
+        <p className="text-xs text-gray-400">If your ceiling is sloped, measure to the highest point</p>
+      )}
+      {isTubSurround && (
+        <>
+          <DimensionDropdown
+            value={dimensions.tubHeightInches}
+            onChange={(v) => onChange({ ...dimensions, tubHeightInches: v })}
+            label="Tub height (floor to top of tub rim)"
+            options={TUB_HEIGHT_OPTIONS}
+            placeholder="Tub height"
+          />
+          <p className="text-xs text-gray-400">Standard tubs are about 14-16 inches. We subtract this so you are only charged for the tiled area above the tub.</p>
+          {tileHeightInches > 0 && (
+            <p className="text-xs text-navy font-medium">Tile height: {tileHeightInches}&quot; ({(tileHeightInches / 12).toFixed(1)} ft)</p>
+          )}
+        </>
+      )}
+      {!isTubSurround && (
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`sloped-${areaType}`}
+            checked={dimensions.slopedCeiling}
+            onChange={(e) => onChange({ ...dimensions, slopedCeiling: e.target.checked })}
+            className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+          />
+          <label htmlFor={`sloped-${areaType}`} className="text-sm text-gray-600">Sloped ceiling</label>
+        </div>
+      )}
       <div className="space-y-2 pt-1">
         {dimensions.walls.map((wall, idx) => (
           <div key={idx} className="space-y-1">
@@ -1226,7 +1283,7 @@ function WallDimensionInputs({
         </button>
       )}
       {sqft > 0 && (
-        <p className="text-xs text-gray-500">Calculated: {sqft} sq ft</p>
+        <OverageDisplay sqft={sqft} />
       )}
       {areaType === "shower_walls" && autoFilled && (
         <p className="text-xs text-gray-400">Auto-filled from shower floor dimensions. Edit any wall width to override.</p>
@@ -1345,7 +1402,7 @@ function BacksplashDimensionInputs({
         displayFn={(v) => String(v)}
       />
       {totalSqft > 0 && (
-        <p className="text-xs text-gray-500">Calculated: {totalSqft} sq ft</p>
+        <OverageDisplay sqft={totalSqft} />
       )}
     </div>
   );
